@@ -1,0 +1,271 @@
+/* 우리말 우수사례 — 목록과 상세를 감싸는 껍데기 */
+
+/*
+ * overflow 는 지정하지 않습니다.
+ * 조상에 overflow:hidden 이 있으면 그 안쪽의 position:sticky 가 화면이 아니라
+ * 그 요소를 기준으로 잡혀 사실상 고정되지 않습니다(7월 우수사례의 목차).
+ * 넘칠 만한 장식도 없어 굳이 잘라 낼 이유가 없습니다.
+ */
+.main {
+  position: relative;
+}
+
+.hero {
+  composes: heroPattern from '../styles/shared.module.css';
+}
+
+.heroInner {
+  composes: heroInner from '../styles/shared.module.css';
+}
+
+.heroTitle {
+  composes: heroTitle from '../styles/shared.module.css';
+}
+
+.heroLead {
+  composes: heroLead from '../styles/shared.module.css';
+  composes: bodyLg from '../styles/shared.module.css';
+}
+
+.content {
+  composes: container from '../styles/shared.module.css';
+  padding-top: 36px;
+  padding-bottom: 80px;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+/* ---------- 월별 목록 ---------- */
+
+.monthList {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  border-top: 2px solid var(--deep-navy);
+}
+
+.monthList li {
+  border-bottom: 1px solid #dfe4ec;
+}
+
+.monthRow {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  width: 100%;
+  padding: 26px 20px;
+  border: 0;
+  background: transparent;
+  color: var(--deep-navy);
+  font: inherit;
+  text-align: left;
+  transition: background-color 0.2s ease;
+}
+
+.monthRow:hover {
+  background: #eef2f8;
+}
+
+.monthRow:focus-visible {
+  outline: 3px solid #246ac7;
+  outline-offset: -3px;
+}
+
+.monthDate {
+  color: #687386;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.monthTitle {
+  flex: 1;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.monthArrow {
+  color: var(--outline);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.monthRow:hover .monthArrow {
+  color: var(--deep-navy);
+  transform: translateX(3px);
+}
+
+@media (max-width: 640px) {
+  .monthRow {
+    gap: 14px;
+    padding: 22px 8px;
+  }
+
+  .monthTitle {
+    font-size: 16px;
+  }
+
+  .monthDate {
+    font-size: 12px;
+  }
+}
+
+.empty {
+  padding: 48px 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+/* ---------- 상세 ---------- */
+
+.detailTopBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.backButton:hover {
+  border-color: var(--deep-navy);
+  color: var(--deep-navy);
+}
+
+.breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--outline);
+}
+
+.breadcrumbLink {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--outline);
+  font-size: 13px;
+}
+
+.breadcrumbLink:hover {
+  color: var(--deep-navy);
+  text-decoration: underline;
+}
+
+.breadcrumbSep {
+  font-size: 15px;
+  color: var(--outline-variant);
+}
+
+.breadcrumbCurrent {
+  color: var(--on-surface-variant);
+  font-weight: 600;
+}
+
+.notFound {
+  padding: 48px 0;
+  color: var(--error);
+  text-align: center;
+}
+
+/* ---------- 이전/다음 회차 ---------- */
+
+.pager {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin-top: 40px;
+  background: var(--paper-white);
+  border: 1px solid rgba(197, 198, 207, 0.45);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  .pager {
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+  }
+}
+
+.pagerButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 22px;
+  background: none;
+  border: 0;
+  text-align: left;
+  transition: background-color 0.2s ease;
+}
+
+.pagerButton:hover:not(:disabled) {
+  background: var(--surface-container-low);
+}
+
+.pagerButton:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.pagerNext {
+  composes: pagerButton;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.pagerLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--outline);
+}
+
+.pagerTitle {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--deep-navy);
+}
+
+.pagerIcon {
+  font-size: 20px;
+  color: var(--outline);
+}
+
+.pagerCenter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 22px;
+  background: none;
+  border: 0;
+  border-left: 1px solid rgba(197, 198, 207, 0.4);
+  border-right: 1px solid rgba(197, 198, 207, 0.4);
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pagerCenter:hover {
+  color: var(--deep-navy);
+}

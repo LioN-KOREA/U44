@@ -1,0 +1,55 @@
+/*
+ * 팝업들이 올라가는 공용 레이어.
+ * 팝업마다 배경을 하나씩 깔면 서로 겹쳐 하나만 보이므로, 배경은 여기 한 장만 둡니다.
+ * 열려 있는 팝업이 없으면 이 레이어 자체가 그려지지 않아 화면을 가리지 않습니다.
+ */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  padding: 32px 16px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+/*
+ * 팝업이 놓이는 줄. margin:auto 로 가운데 두면 내용이 화면보다 길 때도
+ * 위쪽이 잘리지 않고 스크롤됩니다 (align-items:center 로는 잘립니다).
+ */
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  margin: auto;
+}
+
+/* 화면이 넉넉하면 나란히 놓습니다. */
+@media (min-width: 960px) {
+  .row {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 28px;
+  }
+}
+
+@keyframes layerIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.overlay {
+  animation: layerIn 0.25s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay {
+    animation: none;
+  }
+}

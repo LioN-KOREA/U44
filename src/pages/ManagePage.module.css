@@ -1,0 +1,471 @@
+/* 관리 화면. 사이트의 다른 화면과 달리 편집용이라 밀도를 높였습니다. */
+
+.main {
+  composes: container from '../styles/shared.module.css';
+  padding-top: 32px;
+  padding-bottom: 80px;
+}
+
+.topBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--deep-navy);
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.subtitle {
+  margin-top: 4px;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+}
+
+.topActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.dirtyMark {
+  padding: 4px 10px;
+  background: rgba(253, 197, 0, 0.25);
+  border-radius: 9999px;
+  color: #7a5b00;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.savedMark {
+  color: var(--outline);
+  font-size: 12px;
+}
+
+/* ---------- 단추 ---------- */
+
+.primaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: var(--deep-navy);
+  border: 1px solid var(--deep-navy);
+  border-radius: 6px;
+  color: var(--paper-white);
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.2s ease;
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  font-weight: 600;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: var(--deep-navy);
+  color: var(--deep-navy);
+}
+
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px;
+  background: none;
+  border: 1px solid rgba(186, 26, 26, 0.35);
+  border-radius: 6px;
+  color: var(--error);
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: rgba(186, 26, 26, 0.08);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--outline);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.linkButton:hover {
+  color: var(--error);
+}
+
+/* ---------- 알림 ---------- */
+
+.status {
+  padding: 24px 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.error {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  background: rgba(186, 26, 26, 0.06);
+  border: 1px solid rgba(186, 26, 26, 0.3);
+  border-radius: 6px;
+  color: var(--error);
+  font-size: 14px;
+  white-space: pre-line;
+}
+
+.hint {
+  margin-top: 4px;
+  color: var(--outline);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---------- 구역 ---------- */
+
+.section {
+  margin-bottom: 40px;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sectionTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+/* ---------- 시상식 ---------- */
+
+.ceremonyList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ceremony {
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ceremonyHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-container-low);
+}
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 140px;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--deep-navy);
+  text-align: left;
+}
+
+.ceremonyTitle {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.completeToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+}
+
+.ceremonyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-top: 1px solid var(--outline-variant);
+}
+
+/* ---------- 입력 ---------- */
+
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.fieldLabel {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--deep-navy);
+}
+
+.textarea {
+  composes: input;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.colorInput {
+  width: 100%;
+  height: 36px;
+  padding: 2px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* ---------- 부문 / 수상자 ---------- */
+
+.subSection {
+  padding-top: 12px;
+  border-top: 1px dashed var(--outline-variant);
+}
+
+.subHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.subTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.sectionCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 14px;
+  background: var(--surface-container-low);
+  border-radius: 8px;
+}
+
+.winnerList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.winnerRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+}
+
+.winnerFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.pictureRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.pictureItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------- 이미지 고르기 ---------- */
+
+.imageField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.imageButton {
+  width: 140px;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  overflow: hidden;
+  background: var(--surface-container);
+  border: 1px dashed var(--outline-variant);
+  border-radius: 8px;
+  transition: border-color 0.2s ease;
+}
+
+.imageButton:hover {
+  border-color: var(--deep-navy);
+}
+
+.imagePreview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.imageEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  color: var(--outline);
+  font-size: 12px;
+  text-align: center;
+}
+
+.imageMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.imageKey {
+  overflow: hidden;
+  color: var(--outline);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- 이미지 목록 ---------- */
+
+.imageGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.imageCard {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+}
+
+.imageCardThumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--surface-container);
+}
+
+.imageCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+}
+
+.imageSize {
+  color: var(--outline);
+  font-size: 11px;
+}
+
+/* 이름 바꾸기: 평소에는 글자처럼 보이고, 누르면 입력칸이 됩니다. */
+.nameButton {
+  overflow: hidden;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-bottom: 1px dashed var(--outline-variant);
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nameButton:hover {
+  border-bottom-color: var(--deep-navy);
+  color: var(--deep-navy);
+}

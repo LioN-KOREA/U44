@@ -1,0 +1,363 @@
+/* 원본 index.html */
+
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #eef1f2;
+  padding: 40px var(--margin-mobile);
+}
+
+@media (min-width: 768px) {
+  .hero {
+    padding: 64px var(--margin-desktop);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fadeInUp {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeInUp 0.8s ease forwards;
+}
+
+.fadeDelay1 {
+  composes: fadeInUp;
+  animation-delay: 0.2s;
+}
+
+.fadeDelay2 {
+  composes: fadeInUp;
+  animation-delay: 0.4s;
+}
+
+.posterWrap {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+}
+
+.poster {
+  width: 100%;
+  height: auto;
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.heroActions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 40px;
+}
+
+@media (min-width: 768px) {
+  .heroActions {
+    flex-direction: row;
+  }
+}
+
+.heroGold {
+  composes: buttonGold from '../styles/shared.module.css';
+  border: 0;
+}
+
+.heroOutline {
+  composes: buttonOutline from '../styles/shared.module.css';
+  background: none;
+}
+
+/* ---------- 어떤 언론인을 찾나요 ---------- */
+
+.about {
+  composes: container from '../styles/shared.module.css';
+  composes: section from '../styles/shared.module.css';
+  background-image: radial-gradient(circle at 2px 2px, rgba(197, 160, 89, 0.05) 1px, transparent 0);
+  background-size: 40px 40px;
+}
+
+.sectionHeading {
+  composes: headlineLg from '../styles/shared.module.css';
+  color: var(--deep-navy);
+  text-align: center;
+  margin-bottom: var(--section-gap);
+}
+
+.aboutGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--gutter);
+}
+
+@media (min-width: 768px) {
+  .aboutGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.aboutCard {
+  composes: cardWhite from '../styles/shared.module.css';
+  padding: 40px;
+  transition: border-color 0.5s ease;
+}
+
+.aboutCard:hover {
+  border-color: rgba(253, 197, 0, 0.5);
+}
+
+.aboutIcon {
+  display: block;
+  margin-bottom: 24px;
+  font-size: 36px;
+  color: var(--prestige-gold);
+}
+
+.aboutTitle {
+  composes: headlineMd from '../styles/shared.module.css';
+  margin-bottom: 12px;
+  color: var(--deep-navy);
+}
+
+.aboutBody {
+  color: var(--on-surface-variant);
+  line-height: 1.625;
+}
+
+.glossaryBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  margin-top: var(--gutter);
+  padding: 32px;
+  background: var(--deep-navy);
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .glossaryBanner {
+    flex-direction: row;
+    padding: 40px 48px;
+    text-align: left;
+  }
+}
+
+.glossaryText {
+  color: var(--paper-white);
+  line-height: 1.625;
+}
+
+.glossaryLink {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--prestige-gold);
+  font-weight: 700;
+}
+
+.glossaryLink:hover {
+  text-decoration: underline;
+}
+
+.glossaryNote {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.glossaryBreak {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .glossaryBreak {
+    display: block;
+  }
+}
+
+.glossaryButton {
+  composes: buttonGold from '../styles/shared.module.css';
+  flex-shrink: 0;
+  padding: 12px 32px;
+  border: 0;
+}
+
+/* ---------- 시상식 주요 일정 ---------- */
+
+.schedule {
+  composes: section from '../styles/shared.module.css';
+  background: var(--surface-container-low);
+  overflow: hidden;
+}
+
+.scheduleInner {
+  composes: container from '../styles/shared.module.css';
+}
+
+.scheduleGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 64px 40px;
+  align-items: start;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+@media (min-width: 768px) {
+  .scheduleGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.scheduleItem {
+  text-align: center;
+}
+
+.scheduleBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 24px;
+  background: var(--paper-white);
+  border: 2px solid var(--prestige-gold);
+  border-radius: 9999px;
+  color: var(--prestige-gold);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.scheduleItem:hover .scheduleBadge {
+  background: var(--deep-navy);
+  color: var(--paper-white);
+}
+
+.scheduleCard {
+  width: 100%;
+  padding: 24px;
+  background: var(--paper-white);
+  border: 1px solid rgba(197, 198, 207, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: box-shadow 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+}
+
+.scheduleCard:hover {
+  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+  transform: translateY(-8px);
+  border-color: var(--prestige-gold);
+}
+
+.scheduleYear {
+  composes: labelCaps from '../styles/shared.module.css';
+  margin-bottom: 8px;
+  color: var(--prestige-gold);
+}
+
+.scheduleTitle {
+  composes: headlineMd from '../styles/shared.module.css';
+  margin-bottom: 16px;
+  color: var(--deep-navy);
+}
+
+.scheduleList {
+  text-align: left;
+  border-top: 1px solid rgba(197, 198, 207, 0.2);
+}
+
+.scheduleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(197, 198, 207, 0.2);
+}
+
+.scheduleRow:last-child {
+  border-bottom: 0;
+}
+
+.scheduleMonth {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.scheduleWhen {
+  color: var(--on-surface-variant);
+  text-align: right;
+}
+
+/* ---------- 문의 ---------- */
+
+.contact {
+  padding: var(--stack-lg) var(--margin-mobile);
+  background: var(--paper-white);
+  border-bottom: 1px solid rgba(197, 198, 207, 0.2);
+}
+
+.contactInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .contactInner {
+    flex-direction: row;
+    text-align: left;
+  }
+}
+
+.contactTitle {
+  composes: headlineMd from '../styles/shared.module.css';
+  color: var(--deep-navy);
+}
+
+.contactNote {
+  color: var(--on-surface-variant);
+}
+
+.contactIcon {
+  display: inline-flex;
+  padding: 12px;
+  border-radius: 9999px;
+  background: var(--surface-container);
+  color: var(--deep-navy);
+  transition: background-color 0.3s ease;
+}
+
+.contactIcon:hover {
+  background: rgba(253, 197, 0, 0.1);
+}
+
+/* 일정(시상식 설정)을 읽지 못했을 때 */
+.scheduleError {
+  margin-bottom: 24px;
+  color: var(--error);
+  text-align: center;
+}

@@ -1,0 +1,384 @@
+/* 원본 gallery.html + 시안(award_winner_page.png) 기준의 수상자 목록 */
+
+.main {
+  position: relative;
+  overflow: hidden;
+}
+
+.hero {
+  composes: heroPattern from '../styles/shared.module.css';
+}
+
+.heroInner {
+  composes: heroInner from '../styles/shared.module.css';
+}
+
+.heroTitle {
+  composes: heroTitle from '../styles/shared.module.css';
+}
+
+.heroLead {
+  composes: heroLead from '../styles/shared.module.css';
+  composes: bodyLg from '../styles/shared.module.css';
+}
+
+/* ---------- 목록 ---------- */
+
+.list {
+  composes: container from '../styles/shared.module.css';
+  padding-top: 36px;
+  padding-bottom: 72px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+
+.select {
+  min-width: 150px;
+  height: 44px;
+  padding: 0 14px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  color: var(--on-surface);
+  font-size: 14px;
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--prestige-gold);
+}
+
+.controlsRight {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.searchWrap {
+  position: relative;
+  width: 260px;
+  max-width: 100%;
+}
+
+.searchInput {
+  width: 100%;
+  height: 44px;
+  padding: 0 42px 0 16px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.searchInput:focus {
+  border-color: var(--prestige-gold);
+}
+
+.searchIcon {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: var(--on-surface-variant);
+  pointer-events: none;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 20px;
+}
+
+/* ---------- 상태 표시 ---------- */
+
+.status {
+  padding: 64px 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.statusError {
+  composes: status;
+  color: var(--error);
+}
+
+.skeletonGrid {
+  composes: grid;
+}
+
+@keyframes shimmer {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.skeleton {
+  height: 300px;
+  background: var(--surface-container-low);
+  border: 1px solid rgba(197, 198, 207, 0.4);
+  border-radius: 10px;
+  animation: shimmer 1s ease-in-out infinite alternate;
+}
+
+/* ---------- 쪽 넘김 ---------- */
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 34px;
+}
+
+.pageBtn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  background: none;
+  border: 0;
+  border-radius: 9999px;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  font-weight: 600;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.pageBtn:hover:not(:disabled) {
+  background: var(--surface-container);
+  color: var(--deep-navy);
+}
+
+.pageBtnActive {
+  composes: pageBtn;
+  background: var(--deep-navy);
+  color: var(--paper-white);
+}
+
+.pageBtnActive:hover:not(:disabled) {
+  background: var(--deep-navy);
+  color: var(--paper-white);
+}
+
+.pageBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.pageEllipsis {
+  min-width: 24px;
+  color: var(--outline);
+  text-align: center;
+}
+
+/* ---------- 추천 안내 띠 ---------- */
+
+.inviteBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 44px;
+  padding: 24px 26px;
+  background: var(--paper-white);
+  border: 1px solid rgba(197, 198, 207, 0.5);
+  border-radius: 12px;
+}
+
+@media (min-width: 768px) {
+  .inviteBanner {
+    flex-direction: row;
+    align-items: center;
+    gap: 22px;
+    padding: 26px 32px;
+  }
+}
+
+.inviteIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: var(--deep-navy);
+  color: var(--prestige-gold);
+  font-size: 32px;
+}
+
+.inviteText {
+  flex: 1;
+}
+
+.inviteTitle {
+  margin-bottom: 6px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.inviteBody {
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.inviteButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 13px 26px;
+  background: var(--paper-white);
+  border: 1px solid var(--deep-navy);
+  border-radius: 6px;
+  color: var(--deep-navy);
+  font-size: 14px;
+  font-weight: 700;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.inviteButton:hover {
+  background: var(--deep-navy);
+  color: var(--paper-white);
+}
+
+/* ---------- 누리소통망 ---------- */
+
+.social {
+  composes: container from '../styles/shared.module.css';
+  position: relative;
+  z-index: 1;
+  padding-top: 24px;
+  padding-bottom: var(--section-gap);
+}
+
+.socialHead {
+  margin-bottom: 48px;
+  text-align: center;
+}
+
+.socialIcon {
+  display: block;
+  margin-bottom: 16px;
+  font-size: 36px;
+  color: var(--prestige-gold);
+}
+
+.socialTitle {
+  composes: headlineLg from '../styles/shared.module.css';
+  margin-bottom: 12px;
+  color: var(--deep-navy);
+}
+
+.socialHandle {
+  composes: labelCaps from '../styles/shared.module.css';
+  color: var(--on-surface-variant);
+  transition: color 0.3s ease;
+}
+
+.socialHandle:hover {
+  color: var(--prestige-gold);
+}
+
+.postGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  align-items: center;
+  max-width: 42rem;
+  margin: 0 auto 40px;
+}
+
+@media (min-width: 768px) {
+  .postGrid {
+    gap: 40px;
+  }
+}
+
+.post {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--surface-container-low);
+  border: 1px solid rgba(197, 198, 207, 0.2);
+}
+
+.postImage {
+  width: 100%;
+  background: none;
+  transition: transform 0.5s ease;
+}
+
+/* 게시글 이미지는 원래 비율 그대로 보여 줍니다. */
+.postImage img {
+  height: auto;
+  object-fit: contain;
+}
+
+.post:hover .postImage {
+  transform: scale(1.05);
+}
+
+.postOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 41, 107, 0);
+  transition: background-color 0.3s ease;
+}
+
+.post:hover .postOverlay {
+  background: rgba(0, 41, 107, 0.4);
+}
+
+.postOverlayIcon {
+  font-size: 30px;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.post:hover .postOverlayIcon {
+  opacity: 1;
+}
+
+.moreWrap {
+  text-align: center;
+}
+
+.moreLink {
+  composes: buttonBase from '../styles/shared.module.css';
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 32px;
+  border-color: var(--prestige-gold);
+  color: var(--prestige-gold);
+}
+
+.moreLink:hover {
+  background: var(--prestige-gold);
+  color: #fff;
+}
+
+.moreIcon {
+  font-size: 20px;
+}

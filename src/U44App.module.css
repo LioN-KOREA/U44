@@ -1,0 +1,10 @@
+/* 헤더 · 페이지 · 바닥글을 세로로 쌓는 최상위 껍데기 */
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app > main {
+  flex: 1;
+}

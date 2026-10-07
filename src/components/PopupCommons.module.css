@@ -1,0 +1,168 @@
+/*
+ * 팝업 카드 공통 모양.
+ * 어두운 배경과 배치는 PopupLayer 가 맡고, 여기서는 카드 하나만 그립니다.
+ */
+
+@keyframes popupIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 28rem;
+  overflow: hidden;
+  background: var(--paper-white);
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+  animation: popupIn 0.35s ease;
+}
+
+/* 나란히 놓일 때 서로 눌리지 않도록 폭을 고정합니다. */
+@media (min-width: 960px) {
+  .card {
+    width: 28rem;
+    flex-shrink: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    animation: none;
+  }
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.close:hover {
+  color: var(--paper-white);
+}
+
+.head {
+  padding: 40px 32px 32px;
+  background: var(--deep-navy);
+  text-align: center;
+}
+
+.eyebrow {
+  composes: labelCaps from '../styles/shared.module.css';
+  margin-bottom: 12px;
+  color: var(--prestige-gold);
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.375;
+  color: var(--paper-white);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 32px;
+  text-align: center;
+}
+
+.banner {
+  display: flex;
+  align-self: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 24px;
+  padding: 16px 20px;
+  background: rgba(242, 232, 207, 0.6);
+  border: 1px solid rgba(253, 197, 0, 0.4);
+}
+
+.bannerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--deep-navy);
+  font-weight: 600;
+}
+
+.points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 32px;
+  text-align: left;
+}
+
+.textNonPoint {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 2rem;
+  text-align: center;
+  font-size : 0.875rem;
+  line-height : 1.25rem;
+}
+
+
+.point {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  color: var(--on-surface-variant);
+}
+
+.pointIcon {
+  flex-shrink: 0;
+  color: var(--prestige-gold);
+}
+
+.pointStrong {
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.action {
+  composes: buttonGold from '../styles/shared.module.css';
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+.viewNotice {
+  composes: buttonNavy from '../styles/shared.module.css';
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 16px;
+}
+
+.hideToday {
+  margin-top: auto;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  text-decoration: underline;
+}
+
+.hideToday:hover {
+  color: var(--deep-navy);
+}

@@ -1,0 +1,131 @@
+/*
+ * 원본 HTML 의 tailwind.config 에 있던 디자인 토큰을 CSS 변수로 옮긴 파일입니다.
+ * CSS Module 들은 이 변수만 참조하므로 색/간격/타이포는 여기서 한 번에 조정할 수 있습니다.
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+:root {
+  /* colors */
+  --prestige-gold: #fdc500;
+  --paper-white: #ffffff;
+  --soft-gold: #f2e8cf;
+  --deep-navy: #00296b;
+  --ink-black: #111111;
+  --on-surface-variant: #45464e;
+  --on-surface: #1b1b1e;
+  --surface-container: #efedf0;
+  --surface-container-low: #f5f3f6;
+  --surface-container-lowest: #ffffff;
+  --surface-container-highest: #e4e2e5;
+  --outline-variant: #c5c6cf;
+  --outline: #75777f;
+  --background: #fbf8fc;
+  --error: #ba1a1a;
+
+  /* spacing */
+  --gutter: 24px;
+  --stack-sm: 8px;
+  --stack-md: 16px;
+  --stack-lg: 32px;
+  --section-gap: 120px;
+  --margin-mobile: 20px;
+  --margin-desktop: 64px;
+  --container-max: 1280px;
+
+  /* typography */
+  --font-sans: 'Noto Sans KR', sans-serif;
+  --text-label-caps: 14px;
+  --text-headline-md: 24px;
+  --text-headline-lg: 40px;
+  --text-headline-lg-mobile: 32px;
+  --text-body-md: 16px;
+  --text-body-lg: 18px;
+  --text-quote: 20px;
+  --text-display-hero: 64px;
+  --text-display-hero-mobile: 40px;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background-color: var(--background);
+  color: var(--on-surface);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-md);
+  line-height: 1.6;
+  word-break: keep-all;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ul,
+figure {
+  margin: 0;
+}
+
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/*
+ * Material Symbols 는 리거처 폰트라 전역 클래스로 두어야
+ * 각 CSS Module 에서 합성 클래스로 재사용하기 쉽습니다.
+ */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined', sans-serif;
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+  user-select: none;
+}

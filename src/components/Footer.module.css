@@ -1,0 +1,75 @@
+.footer {
+  width: 100%;
+  border-top: 1px solid rgba(197, 198, 207, 0.3);
+}
+
+/* 원본 페이지마다 조금씩 달랐던 바닥글 배경색 */
+.toneDefault {
+  composes: footer;
+  background: #e5e7eb;
+}
+
+.toneMuted {
+  composes: footer;
+  background: var(--surface-container-highest);
+}
+
+.toneContainer {
+  composes: footer;
+  background: var(--surface-container);
+}
+
+.toneLow {
+  composes: footer;
+  background: var(--surface-container-low);
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 32px;
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 48px var(--margin-mobile);
+}
+
+@media (min-width: 768px) {
+  .inner {
+    flex-direction: row;
+    padding-left: var(--margin-desktop);
+    padding-right: var(--margin-desktop);
+  }
+}
+
+.brand {
+  font-size: var(--text-headline-md);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--prestige-gold);
+  margin-bottom: 8px;
+}
+
+.note {
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  margin-bottom: 4px;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.link {
+  font-size: 14px;
+  color: var(--on-surface-variant);
+  transition: color 0.3s ease;
+}
+
+.link:hover {
+  color: var(--prestige-gold);
+}

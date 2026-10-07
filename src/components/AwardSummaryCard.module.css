@@ -1,0 +1,112 @@
+/* 홈과 시상식 안내에서 똑같이 쓰이는 '총 8명 선정 / 상금' 요약 카드 */
+
+.wrapper {
+  max-width: 56rem;
+  margin: 64px auto 0;
+}
+
+.card {
+  background: var(--paper-white);
+  border: 1px solid rgba(197, 198, 207, 0.2);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  padding: 32px;
+}
+
+@media (min-width: 768px) {
+  .card {
+    padding: 48px;
+  }
+}
+
+.head {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.eyebrow {
+  composes: labelCaps from '../styles/shared.module.css';
+  display: block;
+  margin-bottom: 12px;
+  color: var(--prestige-gold);
+}
+
+.total {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+@media (min-width: 768px) {
+  .total {
+    font-size: 48px;
+  }
+}
+
+.breakdown {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+@media (min-width: 640px) {
+  .breakdown {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.count {
+  margin-bottom: 12px;
+  font-size: 48px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--prestige-gold);
+}
+
+.countUnit {
+  font-size: 24px;
+}
+
+.role {
+  composes: headlineMd from '../styles/shared.module.css';
+  color: var(--deep-navy);
+}
+
+.roleNote {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--on-surface-variant);
+}
+
+.prizeArea {
+  padding-top: 32px;
+  border-top: 1px solid rgba(197, 198, 207, 0.2);
+  text-align: center;
+}
+
+.prize {
+  margin-bottom: 24px;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+@media (min-width: 768px) {
+  .prize {
+    font-size: 36px;
+  }
+}
+
+.prizeAmount {
+  color: var(--prestige-gold);
+}
+
+.prizeNote {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--on-surface-variant);
+}

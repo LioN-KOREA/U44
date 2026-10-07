@@ -1,0 +1,113 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 900px;
+  max-height: 85vh;
+  padding: 20px 24px 24px;
+  background: var(--paper-white);
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.3);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--deep-navy);
+}
+
+.close {
+  display: inline-flex;
+  padding: 4px;
+  background: none;
+  border: 0;
+  color: var(--on-surface-variant);
+}
+
+.close:hover {
+  color: var(--deep-navy);
+}
+
+.status {
+  padding: 24px 0;
+  color: var(--on-surface-variant);
+  text-align: center;
+}
+
+.error {
+  composes: status;
+  color: var(--error);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+  overflow-y: auto;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--paper-white);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  text-align: left;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.item:hover {
+  border-color: var(--deep-navy);
+  box-shadow: 0 6px 14px -10px rgba(0, 41, 107, 0.6);
+}
+
+.itemSelected {
+  composes: item;
+  border-color: var(--prestige-gold);
+  box-shadow: 0 0 0 2px rgba(253, 197, 0, 0.45);
+}
+
+.thumb {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--surface-container);
+}
+
+.itemName {
+  overflow: hidden;
+  color: var(--on-surface-variant);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectedMark {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  color: var(--prestige-gold);
+  font-size: 22px;
+}

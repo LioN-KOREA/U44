@@ -1,0 +1,138 @@
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  background: var(--paper-white);
+  border-bottom: 1px solid rgba(197, 198, 207, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+/* 스크롤 시 그림자 (원본 index.html 의 scroll-aware header) */
+.scrolled {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 80px;
+  width: 100%;
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 var(--margin-mobile);
+}
+
+@media (min-width: 768px) {
+  .bar {
+    padding: 0 var(--margin-desktop);
+  }
+}
+
+.brand {
+  font-size: var(--text-headline-md);
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--deep-navy);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.nav {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .nav {
+    display: flex;
+    align-items: center;
+    gap: 40px;
+  }
+}
+
+.navLink {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: var(--text-label-caps);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--on-surface-variant);
+  transition: color 0.3s ease;
+}
+
+.navLink:hover {
+  color: var(--deep-navy);
+}
+
+.navLinkActive {
+  composes: navLink;
+  color: var(--prestige-gold);
+  font-weight: 700;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--prestige-gold);
+}
+
+.navLinkActive:hover {
+  color: var(--prestige-gold);
+}
+
+.ctaButton {
+  margin-left: 16px;
+  padding: 8px 24px;
+  border: 0;
+  background: var(--deep-navy);
+  color: #fff;
+  font-size: var(--text-label-caps);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  transition: opacity 0.3s ease;
+}
+
+.ctaButton:hover {
+  opacity: 0.9;
+}
+
+.menuButton {
+  display: inline-flex;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--deep-navy);
+}
+
+@media (min-width: 768px) {
+  .menuButton {
+    display: none;
+  }
+}
+
+.mobileMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px var(--margin-mobile);
+  background: var(--paper-white);
+  border-top: 1px solid rgba(197, 198, 207, 0.3);
+}
+
+@media (min-width: 768px) {
+  .mobileMenu {
+    display: none;
+  }
+}
+
+.mobileLink {
+  composes: navLink;
+  text-align: left;
+}
+
+.mobileLinkActive {
+  composes: mobileLink;
+  color: var(--prestige-gold);
+}

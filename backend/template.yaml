@@ -1,0 +1,328 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  U44 backend - the award info config API and the asset (file/image) store.
+
+  Covers the backend only. The frontend is hosted elsewhere (Netlify), so nothing here serves the
+  site itself; the two are joined by (a) the API base URL the frontend calls and (b) the CloudFront
+  URL the API puts into the config it returns. Both are stack outputs.
+
+Parameters:
+  AllowedOriginURLs:
+    Type: String
+    Description: >
+      Comma separated list of the frontend origins allowed to call the API, with no trailing slash
+      (ex. https://urimalaward.com,http://localhost:5199). Used for CORS; a request from anywhere
+      else is rejected with a 403.
+  AssetUploadUrlTtlSec:
+    Type: Number
+    Default: 60
+    Description: How long a presigned upload URL stays valid, in seconds.
+  TempAssetTtlDays:
+    Type: Number
+    Default: 1
+    Description: >
+      How long an uploaded-but-never-confirmed file is kept before S3 deletes it, in days.
+      This is what stops abandoned uploads from piling up.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [x86_64]
+    Timeout: 30
+    MemorySize: 1024 # Resizing an image needs room; the rest of the API is happy with far less.
+    LoggingConfig:
+      LogFormat: JSON
+
+Resources:
+  # ---------------------------------------------------------------------------
+  # Storage
+  # ---------------------------------------------------------------------------
+
+  # One bucket holds the config JSON, the assets and the images. Nothing in it is public: reads go
+  # through CloudFront, writes go through presigned URLs that this stack's Lambda hands out.
+  U44AssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      # The browser PUTs straight to S3 with a presigned URL, so S3 itself has to allow that origin.
+      # Without this the upload fails in the browser (but works from curl), which is a confusing
+      # thing to debug.
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: !Split [",", !Ref AllowedOriginURLs]
+            AllowedMethods: [PUT]
+            AllowedHeaders: ["*"]
+            ExposedHeaders: [ETag]
+            MaxAge: 600
+      LifecycleConfiguration:
+        Rules:
+          # The TTL for unconfirmed uploads. Confirming moves the object out of tmp/, so anything
+          # still sitting here after a day was abandoned.
+          - Id: ExpireUnconfirmedTempAssets
+            Status: Enabled
+            Prefix: tmp/
+            ExpirationInDays: !Ref TempAssetTtlDays
+          - Id: AbortIncompleteUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  # The register of what has been uploaded. S3 holds the bytes under a UUID key, which carries no
+  # name, no upload time and no content type a listing could show - this table holds those, and is
+  # what the management UI lists. A single-table design: "U44PK"/"U44SK" are generic on purpose so
+  # other record kinds can share the table (assets use PK "ASSETS", SK "IMAGE#<key>"/"FILE#<key>").
+  U44Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: U44PK
+          AttributeType: S
+        - AttributeName: U44SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: U44PK
+          KeyType: HASH
+        - AttributeName: U44SK
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        # The asset records cannot be rebuilt from the bucket (the names live only here).
+        PointInTimeRecoveryEnabled: true
+      DeletionProtectionEnabled: true
+
+  # ---------------------------------------------------------------------------
+  # Asset delivery (CloudFront in front of the bucket)
+  # ---------------------------------------------------------------------------
+
+  U44AssetsOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-assets-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  U44AssetsDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "${AWS::StackName} assets"
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200 # Korea is in 200 but not in 100.
+        Origins:
+          - Id: U44AssetsS3Origin
+            DomainName: !GetAtt U44AssetsBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt U44AssetsOriginAccessControl.Id
+            S3OriginConfig: {}
+          - Id: U44ApiOrigin
+            DomainName: !Sub "${U44Api}.execute-api.${AWS::Region}.amazonaws.com"
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        CacheBehaviors:
+          # The API sits behind the same distribution as the assets, so the frontend needs only one
+          # base URL for both. Nothing here may be cached or the management UI would read stale
+          # config right after saving it.
+          - PathPattern: /api/*
+            TargetOriginId: U44ApiOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            # Managed-CachingDisabled
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # Managed-AllViewerExceptHostHeader: forwards Origin/Authorization and the body, but
+            # keeps the Host that API Gateway expects.
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+        # The SPA's entry point, for a request to the distribution root.
+        DefaultRootObject: index.html
+        DefaultCacheBehavior:
+          TargetOriginId: U44AssetsS3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Managed-CachingOptimized. Asset keys contain a UUID and are never rewritten, so a long
+          # cache is safe: replacing an image produces a new key rather than a new version.
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt U44SpaRouterFunction.FunctionMetadata.FunctionARN
+
+  # The SPA fallback: what public/_redirects does on Netlify.
+  #
+  # React Router owns paths like /winners/2026-08, which are not objects in the bucket. S3 answers
+  # those with 403 AccessDenied (not 404 - the bucket policy grants only GetObject, so a missing key
+  # is indistinguishable from a forbidden one), and the visitor sees an XML error instead of the page.
+  #
+  # This is deliberately a CloudFront Function rather than a CustomErrorResponse mapping 403 to
+  # /index.html. CustomErrorResponses are distribution-wide, so they would also swallow the API's own
+  # 403 - the CORS rejection today, and the Cognito rejections later - and hand the caller an HTML
+  # page with status 200. A function attached to this one behavior cannot touch /api/*.
+  U44SpaRouterFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-spa-router"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Serve index.html for SPA routes, leaving real files alone.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          // A request for a file keeps its own path: the last segment carries an extension
+          // (/assets/index-abc.js, /images/<uuid>.png, /configs/homescreen.json).
+          var lastSlash = uri.lastIndexOf('/');
+          var lastSegment = lastSlash === -1 ? uri : uri.slice(lastSlash + 1);
+          if (lastSegment.indexOf('.') !== -1) {
+            return request;
+          }
+
+          // Everything else is a route the app resolves in the browser.
+          request.uri = '/index.html';
+          return request;
+        }
+
+  # Only this distribution may read the bucket.
+  U44AssetsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref U44AssetsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${U44AssetsBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:${AWS::Partition}:cloudfront::${AWS::AccountId}:distribution/${U44AssetsDistribution}"
+
+  # ---------------------------------------------------------------------------
+  # API
+  # ---------------------------------------------------------------------------
+
+  # sharp ships native binaries, so it is kept out of the bundle and supplied as a layer built for
+  # the Lambda platform. Build with `sam build --use-container` so the Linux binaries are the ones
+  # that get installed - a layer built on Windows or macOS will fail at runtime.
+  U44SharpLayer:
+    Type: AWS::Serverless::LayerVersion
+    Metadata:
+      BuildMethod: nodejs22.x
+    Properties:
+      LayerName: !Sub "${AWS::StackName}-sharp"
+      ContentUri: layers/sharp
+      CompatibleRuntimes: [nodejs22.x]
+      RetentionPolicy: Delete
+
+  U44Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      # CORS is answered by the application (u44.handler.ts) so that the allow-list is decided in
+      # one place. Configuring it here as well would put two sets of headers on the response.
+      #
+      # To put the management routes behind Cognito later, add the authorizer here and attach it
+      # to the management routes only - the public GET must stay open:
+      #
+      # Auth:
+      #   Authorizers:
+      #     CognitoAuthorizer:
+      #       IdentitySource: $request.header.Authorization
+      #       JwtConfiguration:
+      #         issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}"
+      #         audience: [!Ref UserPoolClientId]
+
+  U44Function:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Minify: true
+        Target: es2022
+        Sourcemap: false
+        OutExtension: [.js=.mjs]
+        EntryPoints: [src/index.ts]
+        External: [sharp] # Comes from the layer above.
+    Properties:
+      CodeUri: ./
+      Handler: index.handler
+      Layers:
+        - !Ref U44SharpLayer
+      Environment:
+        Variables:
+          U44_S3_BUCKET_NAME: !Ref U44AssetsBucket
+          # The three site configs, each its own object: 0 = home screen, 1 = award info,
+          # 2 = social media posts.
+          U44_S3_CONFIG_0_KEY: configs/config0
+          U44_S3_CONFIG_1_KEY: configs/config1
+          U44_S3_CONFIG_2_KEY: configs/config2
+          U44_S3_ASSETS_TEMP_PREFIX: tmp/assets/
+          U44_S3_IMAGES_TEMP_PREFIX: tmp/images/
+          # Deliberately NOT "assets/": the frontend build is served from this same bucket and Vite
+          # emits its hashed bundles to assets/, so uploaded files would be mixed in with the site's
+          # own JS and CSS.
+          U44_S3_ASSETS_PREFIX: uploads/files/
+          U44_S3_IMAGES_PREFIX: images/
+          U44_S3_THUMBNAILS_PREFIX: images/thumbnails/
+          U44_ALLOWED_ORIGIN_URLS: !Ref AllowedOriginURLs
+          U44_ASSETS_BASE_URL: !Sub "https://${U44AssetsDistribution.DomainName}"
+          U44_ASSET_UPLOAD_URL_TTL_SEC: !Ref AssetUploadUrlTtlSec
+          U44_DYNAMO_DB_TABLE_NAME: !Ref U44Table
+      Policies:
+        # The function reads and writes the config, and moves uploads between prefixes. It also
+        # signs upload URLs, which needs no extra permission beyond s3:PutObject on the target key.
+        - S3CrudPolicy:
+            BucketName: !Ref U44AssetsBucket
+        # The asset records: written on confirm, read for every listing, removed on delete.
+        - DynamoDBCrudPolicy:
+            TableName: !Ref U44Table
+      Events:
+        # The app has its own router (rou3), so every path and method is forwarded to it. That
+        # keeps the route list in one place - u44.handler.ts - instead of split across two files.
+        ApiRoutes:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref U44Api
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiBaseURL:
+    Description: >
+      Base URL for the API and the assets - both are behind the same CloudFront distribution.
+      Set this as VITE_API_BASE_URL on the frontend.
+    Value: !Sub "https://${U44AssetsDistribution.DomainName}"
+  ApiGatewayURL:
+    Description: >
+      The API Gateway endpoint itself. CloudFront sits in front of it; this is here for debugging
+      a request without the CDN in the way.
+    Value: !Sub "https://${U44Api}.execute-api.${AWS::Region}.amazonaws.com"
+  AssetsBucketName:
+    Description: The bucket holding the config, the assets and the images.
+    Value: !Ref U44AssetsBucket
+  TableName:
+    Description: The table holding the asset records.
+    Value: !Ref U44Table
