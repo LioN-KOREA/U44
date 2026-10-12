@@ -9,6 +9,9 @@ import type { RawSocialMediaConfig } from './socialMedia'
  * The API and the assets sit behind the same CloudFront distribution, so one base URL
  * (VITE_API_BASE_URL) covers both. With no base URL there is no backend to manage, which is why
  * the 관리 route is not mounted at all in that case.
+ *
+ * 모든 요청에는 로그인한 관리자의 접근 토큰이 붙습니다. 백엔드가 토큰을 직접 검증하고 권한까지
+ * 확인하므로, 화면에서 무엇을 감추든 이 토큰이 없으면 아무것도 바꿀 수 없습니다.
  */
 
 const MANAGEMENT_BASE = '/api/management/v0'
@@ -17,10 +20,35 @@ function managementUrl(path: string): string {
   return `${apiBaseUrl}${MANAGEMENT_BASE}${path}`
 }
 
+/*
+ * 접근 토큰을 가져오는 함수.
+ *
+ * 토큰은 AuthProvider 가 메모리에 들고 있고(저장소에 두지 않습니다), 이 모듈은 리액트를 모르는
+ * 평범한 모듈이라 바로 꺼내 쓸 수 없습니다. 그래서 AuthProvider 가 시작할 때 꺼내는 방법만
+ * 여기에 등록해 둡니다. 만료가 가까우면 이 함수가 먼저 갱신하고 새 토큰을 돌려줍니다.
+ */
+type AccessTokenProvider = () => Promise<string | null>
+
+let accessTokenProvider: AccessTokenProvider | null = null
+
+export function setAccessTokenProvider(provider: AccessTokenProvider | null): void {
+  accessTokenProvider = provider
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(managementUrl(path), init)
+  const accessToken = accessTokenProvider ? await accessTokenProvider() : null
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다. 다시 로그인해 주세요.')
+  }
+
+  const response = await fetch(managementUrl(path), {
+    ...init,
+    headers: { ...init?.headers, Authorization: `Bearer ${accessToken}` },
+  })
   const text = (await response.text()).trim()
   if (!response.ok) {
+    if (response.status === 401) throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.')
+    if (response.status === 403) throw new Error('이 작업을 할 권한이 없습니다.')
     // The API answers with a plain string on failure, so it is shown as-is.
     throw new Error(text || `요청이 실패했습니다 (HTTP ${response.status})`)
   }

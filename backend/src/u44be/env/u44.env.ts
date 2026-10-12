@@ -13,6 +13,14 @@ export type AppEnv = {
     appAssetsBaseURL : string;
     /** How long an upload URL stays valid. Short, since the client uploads right away. */
     appAssetUploadUrlValidForSec : number;
+    /** The account system's origin. Called server-to-server, so not through the /lpx proxy. */
+    appAuthBaseURL : string;
+    /** This app's client id. Asserted as the access token's client_id claim. */
+    appAuthClientId : string;
+    /** The Cognito user pool the tokens come from. Its prefix before "_" is the region. */
+    appAuthUserPoolId : string;
+    /** The authority an account must hold to use the management API. */
+    appManageAuthorityId : string;
 }
 
 let appEnv : AppEnv | null = null;
@@ -34,6 +42,10 @@ export function getAppEnv() : AppEnv {
         appAllowedOriginURLs : (process.env.U44_ALLOWED_ORIGIN_URLS ?? "").split(",").map(fi => fi.trim()).filter(fi => !!fi && fi.length > 0),
         appAssetsBaseURL : process.env.U44_ASSETS_BASE_URL ?? "", // ex. https://sdfsdfsdghks.cloudfront.net
         appAssetUploadUrlValidForSec : Number(process.env.U44_ASSET_UPLOAD_URL_TTL_SEC ?? "60"),
+        appAuthBaseURL : (process.env.U44_AUTH_BASE_URL ?? "").replace(/\/+$/, ""),
+        appAuthClientId : process.env.U44_AUTH_CLIENT_ID ?? "",
+        appAuthUserPoolId : process.env.U44_AUTH_USER_POOL_ID ?? "",
+        appManageAuthorityId : process.env.U44_MANAGE_AUTHORITY_ID ?? "",
     }
     return appEnv;
 }

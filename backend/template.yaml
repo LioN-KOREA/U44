@@ -25,6 +25,32 @@ Parameters:
       How long an uploaded-but-never-confirmed file is kept before S3 deletes it, in days.
       This is what stops abandoned uploads from piling up.
 
+  # --- 라이온코리아 IT 서비스 계정관리 시스템 (see reference.md at the repo root) ---
+  AuthUpstreamDomain:
+    Type: String
+    Default: d3mfomuay6suit.cloudfront.net
+    Description: >
+      Host name of the account system, reverse-proxied at /lpx/* on this distribution.
+      Host name only - no scheme and no trailing slash.
+  AuthClientId:
+    Type: String
+    Default: falm03vg6r35htb27ctg7rjda
+    Description: >
+      This app's client id. Sent as ?clientId= on every /lpx/auth call, and asserted as the
+      access token's client_id claim.
+  AuthUserPoolId:
+    Type: String
+    Default: ap-northeast-2_0FVbitEBz
+    Description: >
+      The Cognito user pool backing the account system. Its prefix before the underscore is the
+      region, which together build the JWKS URL used to verify tokens.
+  ManageAuthorityId:
+    Type: String
+    Default: 519093fd-d789-4853-b117-45187186ccb3
+    Description: >
+      The authority a signed-in account must hold to use the management API. Checked by id, never
+      by name - names are editable, ids are the stable contract.
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -135,7 +161,38 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
+          # The 라이온코리아 account system. Proxied so that the browser sees it on our own origin.
+          - Id: U44AuthOrigin
+            DomainName: !Ref AuthUpstreamDomain
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
         CacheBehaviors:
+          # The auth system, reverse-proxied under our own origin.
+          #
+          # Serving it same-origin is what lets the refresh cookie stay SameSite=Lax and removes the
+          # CORS preflight; the frontend then only ever calls relative /lpx/... paths.
+          #
+          # Four things this behavior must get right (reference.md, "Proxy requirements"):
+          #   - the /lpx prefix is preserved, because the refresh cookie is scoped to
+          #     Path=/lpx/auth/token and a rewritten path would stop the browser sending it;
+          #   - Authorization, X-Sec-Token, Cookie and the query string all reach the upstream;
+          #   - nothing is cached - these responses are per-user, and a cached userInfo served to
+          #     another visitor would be an account takeover;
+          #   - the upstream receives its OWN Host, not the viewer's, or it answers 403 to
+          #     everything.
+          - PathPattern: /lpx/*
+            TargetOriginId: U44AuthOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            # Managed-CachingDisabled: TTL 0, so responses pass straight through and Set-Cookie
+            # reaches the browser untouched.
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # Managed-AllViewerExceptHostHeader: forwards every viewer header, cookie and query
+            # string, while sending the origin's own Host.
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # The API sits behind the same distribution as the assets, so the frontend needs only one
           # base URL for both. Nothing here may be cached or the management UI would read stale
           # config right after saving it.
@@ -291,6 +348,12 @@ Resources:
           U44_ASSETS_BASE_URL: !Sub "https://${U44AssetsDistribution.DomainName}"
           U44_ASSET_UPLOAD_URL_TTL_SEC: !Ref AssetUploadUrlTtlSec
           U44_DYNAMO_DB_TABLE_NAME: !Ref U44Table
+          # The account system. The Lambda calls it server-to-server, so it uses the upstream
+          # directly rather than the /lpx/* proxy (which exists for the browser's benefit).
+          U44_AUTH_BASE_URL: !Sub "https://${AuthUpstreamDomain}"
+          U44_AUTH_CLIENT_ID: !Ref AuthClientId
+          U44_AUTH_USER_POOL_ID: !Ref AuthUserPoolId
+          U44_MANAGE_AUTHORITY_ID: !Ref ManageAuthorityId
       Policies:
         # The function reads and writes the config, and moves uploads between prefixes. It also
         # signs upload URLs, which needs no extra permission beyond s3:PutObject on the target key.

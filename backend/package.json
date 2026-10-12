@@ -27,6 +27,7 @@
     "@aws-sdk/client-s3": "^3.1137.0",
     "@aws-sdk/client-sqs": "^3.1124.0",
     "@aws-sdk/s3-request-presigner": "^3.1137.0",
+    "aws-jwt-verify": "^5.2.1",
     "reflect-metadata": "^0.2.2",
     "rou3": "^0.9.2",
     "valibot": "^1.4.2"

@@ -6,6 +6,17 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RequestData } from "../src/utils/reqres/reqres.js";
+import {
+    AUTH_BASE,
+    CLIENT_ID,
+    MANAGE_AUTHORITY,
+    USER_POOL_ID,
+    anAdmin,
+    authHeaders,
+    fakeJwtVerifyModule,
+    installFakeUserInfo,
+    resetFakeAuth,
+} from "./fakeAuth.js";
 
 const BUCKET = "u44-test-bucket";
 const ORIGIN = "https://urimalaward.com";
@@ -20,6 +31,10 @@ process.env.U44_S3_BUCKET_NAME = BUCKET;
 process.env.U44_ALLOWED_ORIGIN_URLS = ORIGIN;
 process.env.U44_ASSETS_BASE_URL = ASSETS_BASE;
 process.env.U44_DYNAMO_DB_TABLE_NAME = "u44-test-table";
+process.env.U44_AUTH_BASE_URL = AUTH_BASE;
+process.env.U44_AUTH_CLIENT_ID = CLIENT_ID;
+process.env.U44_AUTH_USER_POOL_ID = USER_POOL_ID;
+process.env.U44_MANAGE_AUTHORITY_ID = MANAGE_AUTHORITY;
 
 /** key -> stored text. The three configs live under different keys in the same bucket. */
 const stored = new Map<string, string>();
@@ -41,16 +56,22 @@ vi.mock("../src/utils/aws/S3Utils.js", () => ({
     listS3Objects: vi.fn(async () => []),
 }));
 
+vi.mock("aws-jwt-verify", () => fakeJwtVerifyModule());
+
+const restoreFetch = installFakeUserInfo();
+const ADMIN_TOKEN = "admin-token";
 const { handleRequest } = await import("../src/u44be/u44.handler.js");
 
 const HOMESCREEN_KEY = "configs/config0";
 const SOCIAL_KEY = "configs/config2";
 
 function request(method: RequestData["method"], path: string, body: unknown = null): RequestData {
-    return { path, method, body, headers: { origin: ORIGIN }, cookies: {}, queryParams: {}, pathParams: {}, context: new Map() };
+    return { path, method, body, headers: { origin: ORIGIN, ...authHeaders(ADMIN_TOKEN) }, cookies: {}, queryParams: {}, pathParams: {}, context: new Map() };
 }
 
-beforeEach(() => { stored.clear(); putCalls.length = 0; });
+beforeEach(() => {
+    resetFakeAuth();
+    anAdmin(ADMIN_TOKEN); stored.clear(); putCalls.length = 0; });
 
 /* -------------------------------------------------------------------------- */
 /* Home screen                                                                */

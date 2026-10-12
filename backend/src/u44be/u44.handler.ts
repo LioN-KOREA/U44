@@ -28,6 +28,7 @@ import {
 } from "./assets/U44AssetsManager.js";
 import { getAppEnv } from "./env/u44.env.js";
 import { CORS_HEADERS_REJECTED, generateCorsHeadersActual, generateCorsHeadersPreflight } from "../utils/common/CorsUtils.js";
+import { requireManageAuthority } from "./auth/U44AuthGuard.js";
 
 const ALLOWED_ORIGINS = getAppEnv().appAllowedOriginURLs;
 
@@ -162,6 +163,9 @@ const handleDeleteImageEntry : RRHandler = async (input) => {
     return deleteImageEntry(imageId);
 }
 
+/** Everything under here is management, and is gated on the authority. */
+const MANAGEMENT_PATH_PREFIX = "/api/management/";
+
 /* Define the handler array & set up the router */
 
 export type U44Handler = { path: string, method: string, handler: RRHandler }
@@ -210,13 +214,28 @@ export const handleRequest: RRHandler = async (input) => {
             }
         }
     }
+    // The frontend is served from another origin, so every answer needs the CORS headers - a
+    // preflight alone is not enough for the browser to hand the body to the page. That includes
+    // the guard's refusals, or the UI could not tell 401 from a network failure.
+    const withCors = (res: ResponseData<unknown>): ResponseData<unknown> =>
+        reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin)
+            ? { ...res, headers : { ...res.headers, ...generateCorsHeadersActual(reqOrigin, true) } }
+            : res;
+
     const fi = findRoute(u44Router, input.method, input.path);
-    if (!fi) return { status: 404, body: null };
-    const res = await fi.data.handler(fi.params ? { ...input, pathParams : { ...input.pathParams, ...fi.params } } : input);
-    // The frontend is served from another origin, so the actual response needs the CORS headers
-    // too - a preflight alone is not enough for the browser to hand the body to the page.
-    if (reqOrigin && ALLOWED_ORIGINS.includes(reqOrigin)) {
-        return { ...res, headers : { ...res.headers, ...generateCorsHeadersActual(reqOrigin, true) } };
+    if (!fi) return withCors({ status: 404, body: null });
+
+    /*
+     * Everything under /api/management needs a signed-in account holding the management authority.
+     *
+     * Checked here, on the path, rather than inside each handler: a route added later is covered
+     * without anyone having to remember to wrap it. The public /api/v0 reads stay open.
+     */
+    if (input.path.startsWith(MANAGEMENT_PATH_PREFIX)) {
+        const guard = await requireManageAuthority(input.headers);
+        if (!guard.ok) return withCors(guard.response);
     }
-    return res;
+
+    const res = await fi.data.handler(fi.params ? { ...input, pathParams : { ...input.pathParams, ...fi.params } } : input);
+    return withCors(res);
 }

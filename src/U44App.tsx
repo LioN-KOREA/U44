@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import Footer from './components/Footer'
 import Header from './components/Header'
@@ -6,7 +6,7 @@ import ExemplaryCasesPage from './pages/ExemplaryCasesPage'
 import GlossaryPage from './pages/GlossaryPage'
 import HomePage from './pages/HomePage'
 import IntroductionPage from './pages/IntroductionPage'
-import ManagePage from './pages/ManagePage'
+import ManageRoute from './pages/ManageRoute'
 import NominationPage from './pages/NominationPage'
 import WinnersPage from './pages/WinnersPage'
 import { apiBaseUrl } from './data/config'
@@ -42,28 +42,12 @@ function U44App() {
   const { pathname } = useLocation()
   const section = sectionForPath(pathname);
   /*
-   * Temporary; will be controlled by an auth context before going into production.
-   * In a development build it can be flipped from the console (then reload):
-   *   localStorage.setItem('u44admin', '1')
-   * import.meta.env.DEV is false in a production build, so this is not a way in on the live site.
+   * 관리 경로는 백엔드가 설정되어 있을 때만 존재합니다.
+   *
+   * 로그인 여부로는 경로를 막지 않습니다 — 로그인 화면 자체가 이 경로에만 있기 때문입니다.
+   * 누가 들어오는지는 ManageRoute 가 가리고, 실제 차단은 백엔드가 요청마다 합니다.
    */
-  const [isAdminAuthorized, _setIsAdminAuthorized] = useState<boolean>(
-    //() => import.meta.env.DEV && localStorage.getItem('u44admin') === '1',
-    true
-  )
-/*
-  useEffect(() => {
-    if (!import.meta.env.DEV) return
-    const onStorage = () => setIsAdminAuthorized(localStorage.getItem('u44admin') === '1')
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
-*/
-  /*
-   * 관리 화면은 두 조건이 모두 맞을 때만 존재합니다. 숨기는 것이 아니라 경로 자체를 만들지
-   * 않으므로, 주소를 직접 쳐도 아래의 '*' 규칙에 걸려 홈으로 갑니다.
-   */
-  const isManageEnabled = isAdminAuthorized && apiBaseUrl !== ''
+  const isManageEnabled = apiBaseUrl !== ''
 
   useEffect(() => {
     document.title = section.title
@@ -86,7 +70,7 @@ function U44App() {
         <Route path={`${paths.examples}/:caseId?`} element={<ExemplaryCasesPage />} />
         <Route path={`${paths.winners}/:ceremonyId?`} element={<WinnersPage />} />
         <Route path={paths.nomination} element={<NominationPage />} />
-        {isManageEnabled && <Route path={paths.manage} element={<ManagePage />} />}
+        {isManageEnabled && <Route path={paths.manage} element={<ManageRoute />} />}
         {/* 알 수 없는 주소는 홈으로 보냅니다. */}
         <Route path="*" element={<Navigate to={paths.home} replace />} />
       </Routes>
