@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import Reveal from '../components/Reveal'
-import { TERM_PAIRS, type TermPair } from '../data/terms'
+import { GLOSSARY_CONFIG, parseGlossary, type TermPair } from '../data/terms'
+import { useConfig } from '../hooks/useConfig'
 import styles from './GlossaryPage.module.css'
 
 const PAGE_SIZE = 20
@@ -53,15 +54,29 @@ interface GlossaryTerm {
 
 const collator = new Intl.Collator('ko-KR', { numeric: true, sensitivity: 'base' })
 
-/** 원본은 정적 마크업을 런타임에 정렬했습니다. 여기서는 모듈 로드 시 한 번만 계산합니다. */
-const ALL_TERMS: GlossaryTerm[] = TERM_PAIRS.map(([foreign, korean]: TermPair) => ({
-  foreign,
-  korean,
-  category: categoryOf(foreign.replace(/^\d+\.\s*/, '').trim()),
-})).sort((a, b) => collator.compare(a.foreign, b.foreign))
+/** 불러오는 동안 쓸 빈 목록. 렌더마다 새 배열을 만들면 아래 useMemo 가 매번 다시 돕니다. */
+const NO_TERMS: GlossaryTerm[] = []
+
+/** 설정에서 받은 낱말을 화면에서 쓰기 좋게 다듬고 가나다순으로 정렬합니다. */
+function toTerms(pairs: readonly TermPair[]): GlossaryTerm[] {
+  return pairs
+    .map((pair) => ({
+      foreign: pair.original,
+      korean: pair.recommended,
+      category: categoryOf(pair.original.replace(/^\d+\.\s*/, '').trim()),
+    }))
+    .sort((a, b) => collator.compare(a.foreign, b.foreign))
+}
 
 /** 원본 terms.html — 우리말 개선 용어 */
 function GlossaryPage() {
+  const glossary = useConfig(GLOSSARY_CONFIG, parseGlossary)
+  /*
+   * 정렬과 분류는 낱말이 바뀔 때만 하면 됩니다.
+   *
+   * 2,500여 개를 거르고 정렬하는 일이라, 검색어를 한 글자 칠 때마다 다시 하면 눈에 띄게 느립니다.
+   */
+  const allTerms = useMemo(() => (glossary.data ? toTerms(glossary.data) : NO_TERMS), [glossary.data])
   const [filter, setFilter] = useState('all')
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
@@ -69,14 +84,14 @@ function GlossaryPage() {
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    return ALL_TERMS.filter((term) => {
+    return allTerms.filter((term) => {
       if (filter !== 'all' && term.category !== filter) return false
       if (!needle) return true
       return (
         term.foreign.toLowerCase().includes(needle) || term.korean.toLowerCase().includes(needle)
       )
     })
-  }, [filter, query])
+  }, [allTerms, filter, query])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   // 필터/검색이 바뀌어 쪽수가 줄면 마지막 쪽으로 당깁니다.
@@ -164,7 +179,19 @@ function GlossaryPage() {
               ))}
             </div>
 
-            {filtered.length === 0 && <p className={styles.emptyState}>검색 결과가 없습니다.</p>}
+            {/*
+              아직 받아 오는 중인지, 받아 오지 못했는지, 정말 결과가 없는지를 구분해 줍니다.
+              셋 다 '빈 목록' 으로 보이면 사용자는 검색어를 계속 바꿔 보게 됩니다.
+            */}
+            {glossary.error && <p className={styles.emptyState}>{glossary.error}</p>}
+            {glossary.loading && !glossary.error && (
+              <p className={styles.emptyState}>용어를 불러오는 중입니다…</p>
+            )}
+            {!glossary.loading && !glossary.error && filtered.length === 0 && (
+              <p className={styles.emptyState}>
+                {allTerms.length === 0 ? '등록된 용어가 없습니다.' : '검색 결과가 없습니다.'}
+              </p>
+            )}
 
             {filtered.length > 0 && (
               <div className={styles.pagination} aria-label="언어 보기 페이지">

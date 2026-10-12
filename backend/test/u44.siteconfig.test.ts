@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { RequestData } from "../src/utils/reqres/reqres.js";
+import { seoulMonthNow } from "../src/u44be/u44.schemas.js";
 import {
     AUTH_BASE,
     CLIENT_ID,
@@ -138,6 +139,12 @@ describe("GET /api/v0/homescreen", () => {
             mainBannerAltText: DEFAULT_ALT_TEXT,
             contactEmailAddr: DEFAULT_EMAIL,
             businessHours: DEFAULT_HOURS,
+            // 설정이 없을 때의 약속: 추천 팝업은 이번 달로 켜고, 시상식 안내 팝업은 끕니다.
+            homescreenRecommendationPopupConfig: {
+                recommendationPopupOn: true,
+                recommendationMonth: seoulMonthNow(),
+            },
+            homescreenThisMonthAwardPopupConfig: { thisMonthAwardCeremonyPopupOn: false },
             homescreenConfigLastUpdated: 0,
         });
     });

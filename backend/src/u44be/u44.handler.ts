@@ -7,9 +7,13 @@ import {
     AssetEntryCreationRequestSchema,
     AssetRenameRequestSchema,
     AwardInfoConfigSchema,
+    ExemplaryCasesConfigSchema,
     HomescreenConfigSchema,
+    RecommendedGlossaryConfigSchema,
     SocialMediaPostsConfigSchema,
 } from "./u44.schemas.js";
+import { getExemplaryCasesConfig, updateExemplaryCasesConfig } from "./config/U44ExemplaryCaseManager.js";
+import { getGlossaryConfig, updateGlossaryConfig } from "./config/U44GlossaryManager.js";
 import { getHomescreenConfig, getHomescreenConfigRaw, updateHomescreenConfig } from "./config/U44HomescreenManager.js";
 import {
     getSocialMediaPostsConfig,
@@ -87,6 +91,36 @@ const handleGetSocialMediaPostsConfig: RRHandler = async () => {
 
 const handleGetSocialMediaPostsConfigRaw: RRHandler = async () => {
     return getSocialMediaPostsConfigRaw();
+}
+
+/*
+ * 우리말 우수사례 (config3) 와 우리말 개선 용어 (config4).
+ *
+ * 둘 다 글과 낱말 짝뿐이라 바꿔 줄 자산 주소가 없습니다. 그래서 공개용과 편집용 응답이 같고,
+ * 편집용 엔드포인트를 따로 두지 않았습니다 - 시상식·홈 화면과 다른 점입니다.
+ */
+const handleGetExemplaryCasesConfig: RRHandler = async () => {
+    return getExemplaryCasesConfig();
+}
+
+const handleUpdateExemplaryCasesConfig: RRHandler = async (input) => {
+    const p = v.safeParse(ExemplaryCasesConfigSchema, input.body);
+    if (!p.success) return { status: 400, body: `An error occurred while validating the request: ${p.issues}` }
+    return updateExemplaryCasesConfig(p.output);
+}
+
+const handleGetGlossaryConfig: RRHandler = async () => {
+    return getGlossaryConfig();
+}
+
+/*
+ * 용어집은 브라우저가 XLSX·CSV 를 읽어 낱말 짝으로 바꾼 뒤 통째로 보냅니다.
+ * 수천 줄이라도 JSON 으로는 수백 KB 라, 프리사인 업로드까지 갈 일이 아닙니다.
+ */
+const handleUpdateGlossaryConfig: RRHandler = async (input) => {
+    const p = v.safeParse(RecommendedGlossaryConfigSchema, input.body);
+    if (!p.success) return { status: 400, body: `An error occurred while validating the request: ${p.issues}` }
+    return updateGlossaryConfig(p.output);
 }
 
 /* The lists the management UI picks award images (and, later, files) from. */
@@ -173,6 +207,8 @@ export const U44_HANDLERS: U44Handler[] = [
     { path: "/api/management/v0/homescreen", method: "POST", handler: handleUpdateHomescreenConfig },
     { path: "/api/management/v0/award-info", method: "POST", handler: handleUpdateAwardInfoConfig },
     { path: "/api/management/v0/social-media-posts", method: "POST", handler: handleUpdateSocialMediaPostsConfig },
+    { path: "/api/management/v0/exemplary-cases", method: "POST", handler: handleUpdateExemplaryCasesConfig },
+    { path: "/api/management/v0/glossary", method: "POST", handler: handleUpdateGlossaryConfig },
     { path : "/api/management/v0/asset", method : "GET", handler : handleListAssetEntries },
     { path : "/api/management/v0/asset", method : "POST", handler : handleCreateAssetEntry },
     { path : "/api/management/v0/asset/:tid", method : "POST", handler : handleCreateAssetUploadConfirm },
@@ -181,6 +217,8 @@ export const U44_HANDLERS: U44Handler[] = [
     { path : "/api/management/v0/homescreen", method : "GET", handler : handleGetHomescreenConfigRaw },
     { path : "/api/management/v0/award-info", method : "GET", handler : handleGetAwardInfoConfigRaw },
     { path : "/api/management/v0/social-media-posts", method : "GET", handler : handleGetSocialMediaPostsConfigRaw },
+    { path : "/api/management/v0/exemplary-cases", method : "GET", handler : handleGetExemplaryCasesConfig },
+    { path : "/api/management/v0/glossary", method : "GET", handler : handleGetGlossaryConfig },
     { path : "/api/management/v0/image", method : "GET", handler : handleListImageEntries },
     { path : "/api/management/v0/image", method : "POST", handler : handleCreateImageEntry },
     { path : "/api/management/v0/image/:tid", method : "POST", handler : handleCreateImageUploadConfirm },
@@ -189,6 +227,8 @@ export const U44_HANDLERS: U44Handler[] = [
     { path: "/api/v0/homescreen", method: "GET", handler: handleGetHomescreenConfig },
     { path: "/api/v0/award-info", method: "GET", handler: handleGetAwardInfoConfig },
     { path: "/api/v0/social-media-posts", method: "GET", handler: handleGetSocialMediaPostsConfig },
+    { path: "/api/v0/exemplary-cases", method: "GET", handler: handleGetExemplaryCasesConfig },
+    { path: "/api/v0/glossary", method: "GET", handler: handleGetGlossaryConfig },
 ]
 const u44Router = createRouter<U44Handler>();
 U44_HANDLERS.forEach(fi => addRoute(u44Router, fi.method, fi.path, fi));

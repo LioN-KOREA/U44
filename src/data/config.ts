@@ -40,6 +40,8 @@ const CONFIG_SOURCES: Record<string, ConfigSource> = {
   awards: { kind: 'api', path: '/api/v0/award-info' },
   homescreen: { kind: 'api', path: '/api/v0/homescreen' },
   socialMedia: { kind: 'api', path: '/api/v0/social-media-posts' },
+  exemplaryCases: { kind: 'api', path: '/api/v0/exemplary-cases' },
+  glossary: { kind: 'api', path: '/api/v0/glossary' },
 }
 
 /** 정적 파일이 없는 설정. 백엔드가 없으면 불러올 곳이 없습니다. */

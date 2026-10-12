@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import ImagePicker from '../components/manage/ImagePicker'
+import ExemplaryCasesEditor from '../components/manage/ExemplaryCasesEditor'
+import GlossaryEditor from '../components/manage/GlossaryEditor'
 import {
   parseAwardData,
   type RawAwardCeremony,
@@ -9,6 +11,10 @@ import {
   type RawWinner,
 } from '../data/awards'
 import {
+  fetchExemplaryCasesForEditing,
+  fetchGlossaryForEditing,
+  saveExemplaryCasesConfig,
+  saveGlossaryConfig,
   dateTimeInputToEpoch,
   epochToDateTimeInput,
   fetchAwardConfigForEditing,
@@ -20,10 +26,15 @@ import {
   saveSocialMediaConfig,
   seoulYearMonth,
 } from '../data/manage'
-import { HOMESCREEN_DEFAULT, type RawHomescreenConfig } from '../data/homescreen'
+import { homescreenDefault, seoulMonthNow, type RawHomescreenConfig } from '../data/homescreen'
 import type { RawSocialMediaConfig } from '../data/socialMedia'
+import type { RawExemplaryCasesConfig } from '../data/exemplaryCases'
+import type { RawGlossaryConfig } from '../data/terms'
 import { useAssetLibrary, type AssetLibrary } from '../hooks/useAssetLibrary'
 import styles from './ManagePage.module.css'
+
+/** 입력 칸의 안내 문구에 쓰는 기본값. 달과 무관한 항목만 씁니다. */
+const HOMESCREEN_PLACEHOLDERS = homescreenDefault()
 
 /**
  * 관리 - a visual editor for the three site configs.
@@ -54,7 +65,20 @@ const EMPTY_HOMESCREEN: RawHomescreenConfig = {
   mainBannerAltText: '',
   contactEmailAddr: '',
   businessHours: '',
+  // 설정이 없을 때의 약속과 같습니다: 추천 팝업은 이번 달로 켜고, 시상식 안내 팝업은 끕니다.
+  homescreenRecommendationPopupConfig: { recommendationPopupOn: true, recommendationMonth: seoulMonthNow() },
+  homescreenThisMonthAwardPopupConfig: { thisMonthAwardCeremonyPopupOn: false },
   homescreenConfigLastUpdated: 0,
+}
+
+const EMPTY_EXAMPLES: RawExemplaryCasesConfig = {
+  exemplaryCases: [],
+  exemplaryCasesConfigLastUpdated: 0,
+}
+
+const EMPTY_GLOSSARY: RawGlossaryConfig = {
+  lastUpdatedAt: 0,
+  glossary: [],
 }
 
 const EMPTY_SOCIAL: RawSocialMediaConfig = {
@@ -69,9 +93,11 @@ interface DirtyFlags {
   award: boolean
   home: boolean
   social: boolean
+  examples: boolean
+  glossary: boolean
 }
 
-const NOTHING_DIRTY: DirtyFlags = { award: false, home: false, social: false }
+const NOTHING_DIRTY: DirtyFlags = { award: false, home: false, social: false, examples: false, glossary: false }
 
 /** A ceremony that has not happened yet only needs these; the rest is filled in afterwards. */
 function newCeremony(complete: boolean): RawAwardCeremony {
@@ -99,26 +125,32 @@ function ManagePage() {
   const [draft, setDraft] = useState<RawAwardConfig | null>(null)
   const [home, setHome] = useState<RawHomescreenConfig | null>(null)
   const [social, setSocial] = useState<RawSocialMediaConfig | null>(null)
+  const [examples, setExamples] = useState<RawExemplaryCasesConfig | null>(null)
+  const [glossary, setGlossary] = useState<RawGlossaryConfig | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [savedAt, setSavedAt] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState<DirtyFlags>(NOTHING_DIRTY)
 
-  const anyDirty = dirty.award || dirty.home || dirty.social
+  const anyDirty = dirty.award || dirty.home || dirty.social || dirty.examples || dirty.glossary
 
   /** 세 설정을 한꺼번에 받아 옵니다. 하나가 실패해도 나머지는 고칠 수 있게 따로 다룹니다. */
   const load = async () => {
-    const [award, homescreen, socialMedia] = await Promise.allSettled([
+    const [award, homescreen, socialMedia, exemplary, terms] = await Promise.allSettled([
       fetchAwardConfigForEditing(),
       fetchHomescreenConfigForEditing(),
       fetchSocialMediaConfigForEditing(),
+      fetchExemplaryCasesForEditing(),
+      fetchGlossaryForEditing(),
     ])
     if (award.status === 'fulfilled') setDraft({ ...EMPTY_CONFIG, ...award.value })
     if (homescreen.status === 'fulfilled') setHome({ ...EMPTY_HOMESCREEN, ...homescreen.value })
     if (socialMedia.status === 'fulfilled') setSocial({ ...EMPTY_SOCIAL, ...socialMedia.value })
+    if (exemplary.status === 'fulfilled') setExamples({ ...EMPTY_EXAMPLES, ...exemplary.value })
+    if (terms.status === 'fulfilled') setGlossary({ ...EMPTY_GLOSSARY, ...terms.value })
 
-    const failures = [award, homescreen, socialMedia]
+    const failures = [award, homescreen, socialMedia, exemplary, terms]
       .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
       .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)))
     failures.forEach((message) => console.error(message))
@@ -133,13 +165,17 @@ function ManagePage() {
       fetchAwardConfigForEditing(),
       fetchHomescreenConfigForEditing(),
       fetchSocialMediaConfigForEditing(),
-    ]).then(([award, homescreen, socialMedia]) => {
+      fetchExemplaryCasesForEditing(),
+      fetchGlossaryForEditing(),
+    ]).then(([award, homescreen, socialMedia, exemplary, terms]) => {
       if (!active) return
       if (award.status === 'fulfilled') setDraft({ ...EMPTY_CONFIG, ...award.value })
       if (homescreen.status === 'fulfilled') setHome({ ...EMPTY_HOMESCREEN, ...homescreen.value })
       if (socialMedia.status === 'fulfilled') setSocial({ ...EMPTY_SOCIAL, ...socialMedia.value })
+      if (exemplary.status === 'fulfilled') setExamples({ ...EMPTY_EXAMPLES, ...exemplary.value })
+      if (terms.status === 'fulfilled') setGlossary({ ...EMPTY_GLOSSARY, ...terms.value })
 
-      const failures = [award, homescreen, socialMedia]
+      const failures = [award, homescreen, socialMedia, exemplary, terms]
         .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
         .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)))
       failures.forEach((message) => console.error(message))
@@ -172,6 +208,17 @@ function ManagePage() {
   const patchSocial = (changes: Partial<RawSocialMediaConfig>) => {
     setDirty((current) => ({ ...current, social: true }))
     setSocial((current) => (current ? { ...current, ...changes } : current))
+  }
+
+  const patchExamples = (changes: Partial<RawExemplaryCasesConfig>) => {
+    setDirty((current) => ({ ...current, examples: true }))
+    setExamples((current) => (current ? { ...current, ...changes } : current))
+  }
+
+  /** 용어집은 통째로 바뀝니다 (파일 하나가 곧 새 목록). */
+  const replaceGlossary = (pairs: RawGlossaryConfig['glossary']) => {
+    setDirty((current) => ({ ...current, glossary: true }))
+    setGlossary({ lastUpdatedAt: 0, glossary: pairs })
   }
 
   const held = draft?.awardCeremonies ?? []
@@ -234,6 +281,11 @@ function ManagePage() {
 
     if (dirty.home && home) {
       try {
+        // 빈 칸으로 저장하면 0월이 되고, 화면은 조용히 이번 달로 바꿔 그립니다.
+        const month = home.homescreenRecommendationPopupConfig.recommendationMonth
+        if (!Number.isInteger(month) || month < 1 || month > 12) {
+          throw new Error('언론인 추천 안내 팝업: 달은 1~12 사이여야 합니다.')
+        }
         await saveHomescreenConfig(home)
         stillDirty.home = false
       } catch (err) {
@@ -253,6 +305,39 @@ function ManagePage() {
       } catch (err) {
         console.error(err)
         problems.push(err instanceof Error ? err.message : '누리소통망 설정을 저장하지 못했습니다.')
+      }
+    }
+
+    if (dirty.examples && examples) {
+      try {
+        const badMonth = examples.exemplaryCases.findIndex(
+          (item) => !Number.isInteger(item.exemplaryCaseMonth) || item.exemplaryCaseMonth < 1 || item.exemplaryCaseMonth > 12,
+        )
+        if (badMonth !== -1) throw new Error(`우수사례 ${badMonth + 1}번: 월은 1~12 사이여야 합니다.`)
+        // 주소(/examples/2026-08)는 연·월에서 만들므로, 같은 달이 둘이면 뒤의 것에 닿을 수 없습니다.
+        const seen = new Set<string>()
+        for (const item of examples.exemplaryCases) {
+          const id = `${item.exemplaryCaseYear}-${item.exemplaryCaseMonth}`
+          if (seen.has(id)) {
+            throw new Error(`우수사례: ${item.exemplaryCaseYear}년 ${item.exemplaryCaseMonth}월이 두 번 있습니다.`)
+          }
+          seen.add(id)
+        }
+        await saveExemplaryCasesConfig(examples)
+        stillDirty.examples = false
+      } catch (err) {
+        console.error(err)
+        problems.push(err instanceof Error ? err.message : '우수사례를 저장하지 못했습니다.')
+      }
+    }
+
+    if (dirty.glossary && glossary) {
+      try {
+        await saveGlossaryConfig(glossary)
+        stillDirty.glossary = false
+      } catch (err) {
+        console.error(err)
+        problems.push(err instanceof Error ? err.message : '용어집을 저장하지 못했습니다.')
       }
     }
 
@@ -276,7 +361,8 @@ function ManagePage() {
           {anyDirty && (
             <span className={styles.dirtyMark}>
               저장하지 않은 변경:{' '}
-              {[dirty.home && '홈 화면', dirty.award && '시상식', dirty.social && '누리소통망']
+              {[dirty.home && '홈 화면', dirty.award && '시상식', dirty.social && '누리소통망',
+                dirty.examples && '우수사례', dirty.glossary && '용어집']
                 .filter(Boolean)
                 .join(' · ')}
             </span>
@@ -293,7 +379,7 @@ function ManagePage() {
 
       {loadError && <p className={styles.error}>{loadError}</p>}
       {saveError && <p className={styles.error}>{saveError}</p>}
-      {!draft && !home && !social && !loadError && (
+      {!draft && !home && !social && !examples && !glossary && !loadError && (
         <p className={styles.status}>설정을 불러오는 중입니다…</p>
       )}
 
@@ -420,6 +506,9 @@ function ManagePage() {
         </>
       )}
 
+      {examples && <ExemplaryCasesEditor config={examples} onChange={patchExamples} />}
+      {glossary && <GlossaryEditor config={glossary} onReplace={replaceGlossary} />}
+
       <AssetLibrarySection library={library} />
     </main>
   )
@@ -458,12 +547,12 @@ function HomescreenEditor({
                 title="대표 포스터 고르기"
               />
             </Field>
-            <div className={styles.fieldGrid}>
+            <div className={`${styles.fieldGrid} ${styles.grow}`}>
               <Field label="포스터 대체 텍스트">
                 <input
                   type="text"
                   className={styles.input}
-                  placeholder={HOMESCREEN_DEFAULT.mainBannerAltText}
+                  placeholder={HOMESCREEN_PLACEHOLDERS.mainBannerAltText}
                   value={config.mainBannerAltText}
                   onChange={(e) => onChange({ mainBannerAltText: e.target.value })}
                 />
@@ -488,7 +577,7 @@ function HomescreenEditor({
               <input
                 type="email"
                 className={styles.input}
-                placeholder={HOMESCREEN_DEFAULT.contactEmailAddr}
+                placeholder={HOMESCREEN_PLACEHOLDERS.contactEmailAddr}
                 value={config.contactEmailAddr}
                 onChange={(e) => onChange({ contactEmailAddr: e.target.value })}
               />
@@ -497,7 +586,7 @@ function HomescreenEditor({
               <input
                 type="text"
                 className={styles.input}
-                placeholder={HOMESCREEN_DEFAULT.businessHours}
+                placeholder={HOMESCREEN_PLACEHOLDERS.businessHours}
                 value={config.businessHours}
                 onChange={(e) => onChange({ businessHours: e.target.value })}
               />
@@ -506,12 +595,161 @@ function HomescreenEditor({
           {/* 문구가 어떻게 보이는지 그대로 미리 보여 줍니다. */}
           <p className={styles.hint}>
             첫 화면 문구: 시상식 사무국 이메일:{' '}
-            {config.contactEmailAddr || HOMESCREEN_DEFAULT.contactEmailAddr} (평일{' '}
-            {config.businessHours || HOMESCREEN_DEFAULT.businessHours})
+            {config.contactEmailAddr || HOMESCREEN_PLACEHOLDERS.contactEmailAddr} (평일{' '}
+            {config.businessHours || HOMESCREEN_PLACEHOLDERS.businessHours})
           </p>
         </div>
       </div>
+
+      <PopupSettings config={config} onChange={onChange} />
     </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* 첫 화면 팝업                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 첫 화면에 뜨는 두 팝업을 켜고 끄고, 안에 들어갈 내용을 정합니다.
+ *
+ * 설정이 비어 있을 때의 약속: 추천 팝업은 이번 달로 켜 두고, 시상식 안내 팝업은 보여 줄 일정이
+ * 없으므로 끕니다. 그래서 '끈 상태' 는 날짜·장소를 아예 들고 있지 않습니다 - 끄면서 남겨 두면
+ * 다시 켤 때 지난 일정이 그대로 올라갑니다.
+ */
+function PopupSettings({
+  config,
+  onChange,
+}: {
+  config: RawHomescreenConfig
+  onChange: (changes: Partial<RawHomescreenConfig>) => void
+}) {
+  const recommendation = config.homescreenRecommendationPopupConfig
+  const award = config.homescreenThisMonthAwardPopupConfig
+
+  return (
+    <div className={styles.subsectionBlock}>
+      <div className={styles.sectionHead}>
+        <h3 className={styles.subTitle}>첫 화면 팝업</h3>
+      </div>
+      <p className={styles.hint}>
+        처음 들어온 사람에게 뜨는 안내창입니다. 각 팝업에는 ‘오늘 하루 보지 않기’ 가 있어, 한 번
+        닫은 사람에게는 그날 다시 뜨지 않습니다.
+      </p>
+
+      <div className={styles.ceremonyList}>
+        {/* 추천 접수 안내 */}
+        <div className={styles.ceremony}>
+          <div className={styles.ceremonyHead}>
+            <span className={styles.ceremonyTitle}>언론인 추천 안내</span>
+            <label className={styles.completeToggle}>
+              <input
+                type="checkbox"
+                checked={recommendation.recommendationPopupOn}
+                onChange={(e) =>
+                  onChange({
+                    homescreenRecommendationPopupConfig: {
+                      ...recommendation,
+                      recommendationPopupOn: e.target.checked,
+                    },
+                  })
+                }
+              />
+              첫 화면에 띄우기
+            </label>
+          </div>
+          {recommendation.recommendationPopupOn && (
+            <div className={styles.ceremonyBody}>
+              <div className={styles.compactGrid}>
+                <Field label="추천 접수 중인 시상식의 달">
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    className={styles.input}
+                    value={recommendation.recommendationMonth}
+                    onChange={(e) =>
+                      onChange({
+                        homescreenRecommendationPopupConfig: {
+                          ...recommendation,
+                          recommendationMonth: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+              <p className={styles.hint}>
+                팝업 문구: {recommendation.recommendationMonth}월 시상식 언론인 추천 접수 중
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 이달의 시상식 안내 */}
+        <div className={styles.ceremony}>
+          <div className={styles.ceremonyHead}>
+            <span className={styles.ceremonyTitle}>이달의 시상식 안내</span>
+            <label className={styles.completeToggle}>
+              <input
+                type="checkbox"
+                checked={award.thisMonthAwardCeremonyPopupOn}
+                onChange={(e) =>
+                  onChange({
+                    homescreenThisMonthAwardPopupConfig: e.target.checked
+                      ? {
+                          thisMonthAwardCeremonyPopupOn: true,
+                          thisMonthAwardCeremonyTime: Date.now(),
+                          thisMonthAwardCeremonyLocation: '',
+                        }
+                      : { thisMonthAwardCeremonyPopupOn: false },
+                  })
+                }
+              />
+              첫 화면에 띄우기
+            </label>
+          </div>
+          {award.thisMonthAwardCeremonyPopupOn && (
+            <div className={styles.ceremonyBody}>
+              <div className={styles.fieldGrid}>
+                <Field label="시상 일시 (한국 시각)">
+                  <input
+                    type="datetime-local"
+                    className={styles.input}
+                    value={epochToDateTimeInput(award.thisMonthAwardCeremonyTime)}
+                    onChange={(e) => {
+                      const epochMs = dateTimeInputToEpoch(e.target.value)
+                      if (epochMs === undefined) return
+                      onChange({
+                        homescreenThisMonthAwardPopupConfig: { ...award, thisMonthAwardCeremonyTime: epochMs },
+                      })
+                    }}
+                  />
+                  <p className={styles.hint}>팝업의 달과 날짜 문구는 이 일시에서 만듭니다.</p>
+                </Field>
+                <Field label="장소">
+                  <input
+                    type="text"
+                    className={styles.input}
+                    placeholder="장소 미정"
+                    value={award.thisMonthAwardCeremonyLocation}
+                    onChange={(e) =>
+                      onChange({
+                        homescreenThisMonthAwardPopupConfig: {
+                          ...award,
+                          thisMonthAwardCeremonyLocation: e.target.value,
+                        },
+                      })
+                    }
+                  />
+                  <p className={styles.hint}>비워 두면 장소 줄을 그리지 않습니다.</p>
+                </Field>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -869,7 +1107,7 @@ function SectionEditor({
             onChange={(e) => onChange({ sectionColor: e.target.value })}
           />
         </Field>
-        <button type="button" className={styles.dangerButton} onClick={onRemove}>
+        <button type="button" className={`${styles.dangerButton} ${styles.gridAction}`} onClick={onRemove}>
           <Icon name="delete" /> 부문 삭제
         </button>
       </div>

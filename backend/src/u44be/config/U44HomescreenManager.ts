@@ -1,7 +1,7 @@
 import { getS3TextObject, putS3Object } from "../../utils/aws/S3Utils.js";
 import { getAppEnv } from "../env/u44.env.js";
 import * as v from 'valibot'
-import { HomescreenConfig, HomescreenConfigSchema } from "../u44.schemas.js";
+import { HomescreenConfig, HomescreenConfigSchema, seoulMonthNow } from "../u44.schemas.js";
 import { ResponseData } from "../../utils/reqres/reqres.js";
 import { toAssetURL } from "../assets/U44AssetsManager.js";
 
@@ -28,14 +28,26 @@ const HOMESCREEN_DEFAULTS = {
     businessHours : "09:00 - 18:00",
 } as const;
 
+
 /** The config of a site that has not been set up yet: nothing chosen, nothing stored. */
-const EMPTY_CONFIG: HomescreenConfig = {
-    mainBannerImage : "",
-    mainBannerAltText : "",
-    contactEmailAddr : "",
-    businessHours : "",
-    homescreenConfigLastUpdated : 0,
-};
+/**
+ * The config of a site that has not been set up yet: nothing chosen, nothing stored.
+ *
+ * A function, not a constant. The recommendation popup defaults to the current month, and a
+ * constant would freeze whichever month the Lambda container happened to start in - a warm
+ * container living across a month boundary would keep answering with the previous month.
+ */
+function emptyConfig(): HomescreenConfig {
+    return {
+        mainBannerImage : "",
+        mainBannerAltText : "",
+        contactEmailAddr : "",
+        businessHours : "",
+        homescreenRecommendationPopupConfig : { recommendationPopupOn : true, recommendationMonth : seoulMonthNow() },
+        homescreenThisMonthAwardPopupConfig : { thisMonthAwardCeremonyPopupOn : false },
+        homescreenConfigLastUpdated : 0,
+    };
+}
 
 /**
  * Turn a stored asset reference into a URL the browser can use directly.
@@ -107,17 +119,17 @@ export async function getHomescreenConfigRaw() : Promise<ResponseData<Homescreen
 async function readHomescreenConfig() : Promise<ResponseData<HomescreenConfig>> {
     try {
         const r = await getS3TextObject(HOMESCREEN_KEY, BUCKET_NAME);
-        if (r.length === 0) return { status : 200, body : EMPTY_CONFIG }
+        if (r.length === 0) return { status : 200, body : emptyConfig() }
         const rParsed = JSON.parse(r);
         const configParsed = v.safeParse(HomescreenConfigSchema, rParsed);
         if (!configParsed.success) {
             console.error(`The homescreen configuration data is malformed. Text contents : ${r} Issues during the parsing process: ${JSON.stringify(configParsed.issues)}`)
-            return { status : 500, body : EMPTY_CONFIG }
+            return { status : 500, body : emptyConfig() }
         }
         return { status : 200, body : configParsed.output }
     } catch (err) {
         console.error(`An error occurred while fetching the homescreen config : ${err}`)
-        return { status : 500, body : EMPTY_CONFIG }
+        return { status : 500, body : emptyConfig() }
     }
 }
 

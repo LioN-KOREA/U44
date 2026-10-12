@@ -2,6 +2,8 @@ import { apiBaseUrl } from './config'
 import type { RawAwardConfig } from './awards'
 import type { RawHomescreenConfig } from './homescreen'
 import type { RawSocialMediaConfig } from './socialMedia'
+import type { RawExemplaryCasesConfig } from './exemplaryCases'
+import type { RawGlossaryConfig } from './terms'
 
 /**
  * Calls the management API uses (`/api/management/v0/...`).
@@ -105,6 +107,32 @@ export function fetchSocialMediaConfigForEditing(): Promise<RawSocialMediaConfig
 
 export function saveSocialMediaConfig(config: RawSocialMediaConfig): Promise<unknown> {
   return jsonRequest('/social-media-posts', 'POST', config)
+}
+
+/* -------------------------------------------------------------------------- */
+/* 우수사례 · 용어집                                                            */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * 이 둘은 글과 낱말 짝뿐이라 바꿔 줄 자산 주소가 없습니다. 그래서 공개용과 편집용 응답이 같고,
+ * 편집 전용 엔드포인트가 따로 없습니다 (시상식·홈 화면과 다른 점입니다).
+ */
+
+export function fetchExemplaryCasesForEditing(): Promise<RawExemplaryCasesConfig> {
+  return request<RawExemplaryCasesConfig>('/exemplary-cases')
+}
+
+export function saveExemplaryCasesConfig(config: RawExemplaryCasesConfig): Promise<unknown> {
+  return jsonRequest('/exemplary-cases', 'POST', config)
+}
+
+export function fetchGlossaryForEditing(): Promise<RawGlossaryConfig> {
+  return request<RawGlossaryConfig>('/glossary')
+}
+
+/** 용어집은 통째로 바꿉니다. 올린 파일이 곧 새 목록입니다. */
+export function saveGlossaryConfig(config: RawGlossaryConfig): Promise<unknown> {
+  return jsonRequest('/glossary', 'POST', config)
 }
 
 /* -------------------------------------------------------------------------- */

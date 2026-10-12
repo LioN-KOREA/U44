@@ -3,6 +3,8 @@ export type AppEnv = {
     appS3Config0Key : string;
     appS3Config1Key : string;
     appS3Config2Key : string;
+    appS3Config3Key : string;
+    appS3Config4Key : string;
     appS3AssetsTempPrefix : string;
     appS3AssetsImagesTempPrefix : string;
     appS3AssetsPrefix : string;
@@ -32,6 +34,8 @@ export function getAppEnv() : AppEnv {
         appS3Config0Key : process.env.U44_S3_CONFIG_0_KEY ?? "configs/config0",
         appS3Config1Key : process.env.U44_S3_CONFIG_1_KEY ?? "configs/config1",
         appS3Config2Key : process.env.U44_S3_CONFIG_2_KEY ?? "configs/config2",
+        appS3Config3Key : process.env.U44_S3_CONFIG_3_KEY ?? "configs/config3",
+        appS3Config4Key : process.env.U44_S3_CONFIG_4_KEY ?? "configs/config4",
         appS3AssetsTempPrefix : process.env.U44_S3_ASSETS_TEMP_PREFIX ?? "tmp/assets/",
         appS3AssetsImagesTempPrefix : process.env.U44_S3_IMAGES_TEMP_PREFIX ?? "tmp/images/",
         // Not "assets/" - the frontend build shares this bucket and Vite owns that prefix.

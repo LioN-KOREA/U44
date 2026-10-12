@@ -16,11 +16,16 @@ export interface PopupCardProps {
   onHideToday: () => void
 }
 
+export interface NominatePopupProps extends PopupCardProps {
+  /** '○월 시상식 언론인 추천 접수 중' 에 들어갈 달. 관리 화면에서 정합니다. */
+  month: number
+}
+
 /**
  * 언론인 추천을 안내하는 팝업 카드.
  * 어두운 배경과 배치는 PopupLayer 가 맡고, 여기서는 카드 내용만 그립니다.
  */
-function NominateYourCandidatePopup({ onClose, onHideToday }: PopupCardProps) {
+function NominateYourCandidatePopup({ month, onClose, onHideToday }: NominatePopupProps) {
   return (
     <section className={styles.card} aria-label="언론인 추천 안내">
       <button type="button" className={styles.close} aria-label="언론인 추천 안내 닫기" onClick={onClose}>
@@ -40,7 +45,7 @@ function NominateYourCandidatePopup({ onClose, onHideToday }: PopupCardProps) {
         <div className={styles.banner}>
           <div className={styles.bannerRow}>
             <Icon name="campaign" />
-            <p>11월 시상식 언론인 추천 접수 중</p>
+            <p>{month}월 시상식 언론인 추천 접수 중</p>
           </div>
         </div>
 

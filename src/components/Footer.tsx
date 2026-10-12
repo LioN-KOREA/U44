@@ -1,4 +1,4 @@
-import { HOMESCREEN_CONFIG, HOMESCREEN_DEFAULT, parseHomescreen } from '../data/homescreen'
+import { HOMESCREEN_CONFIG, homescreenDefault, parseHomescreen } from '../data/homescreen'
 import { useConfig } from '../hooks/useConfig'
 import styles from './Footer.module.css'
 
@@ -21,7 +21,7 @@ function Footer({ tone = 'default' }: { tone?: FooterTone }) {
    * 받아 오지 못하면 기본값을 써서 문의 주소가 빈 채로 남지 않습니다.
    */
   const homescreen = useConfig(HOMESCREEN_CONFIG, parseHomescreen)
-  const email = (homescreen.data ?? HOMESCREEN_DEFAULT).contactEmailAddr
+  const email = (homescreen.data ?? homescreenDefault()).contactEmailAddr
 
   return (
     <footer className={TONE_CLASS[tone]}>

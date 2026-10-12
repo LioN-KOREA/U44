@@ -331,11 +331,13 @@ Resources:
       Environment:
         Variables:
           U44_S3_BUCKET_NAME: !Ref U44AssetsBucket
-          # The three site configs, each its own object: 0 = home screen, 1 = award info,
-          # 2 = social media posts.
+          # The site configs, each its own object: 0 = home screen, 1 = award info,
+          # 2 = social media posts, 3 = exemplary cases, 4 = recommended glossary.
           U44_S3_CONFIG_0_KEY: configs/config0
           U44_S3_CONFIG_1_KEY: configs/config1
           U44_S3_CONFIG_2_KEY: configs/config2
+          U44_S3_CONFIG_3_KEY: configs/config3
+          U44_S3_CONFIG_4_KEY: configs/config4
           U44_S3_ASSETS_TEMP_PREFIX: tmp/assets/
           U44_S3_IMAGES_TEMP_PREFIX: tmp/images/
           # Deliberately NOT "assets/": the frontend build is served from this same bucket and Vite

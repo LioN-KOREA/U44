@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import AwardSummaryCard from '../components/AwardSummaryCard'
 import NominateYourCandidatePopup from '../components/NominateYourCandidatePopup'
 import Icon from '../components/Icon'
@@ -5,7 +6,7 @@ import NominationCta from '../components/NominationCta'
 import Reveal from '../components/Reveal'
 import { Link } from 'react-router'
 import { paths } from '../navigation'
-import { HOMESCREEN_CONFIG, HOMESCREEN_DEFAULT, parseHomescreen } from '../data/homescreen'
+import { HOMESCREEN_CONFIG, homescreenDefault, parseHomescreen } from '../data/homescreen'
 import { useThumbnail } from '../hooks/useThumbnail'
 import { AWARDS_CONFIG } from '../data/awards'
 import { formatCeremonyShort, parseAwardSchedule, scheduleRows } from '../data/schedules'
@@ -18,7 +19,12 @@ import { usePopups } from '../hooks/usePopups'
 /** 홈에서 띄우는 팝업들. 배열 순서대로 레이어에 나란히 놓입니다. */
 const POPUP_NOMINATE = 'nominateYourCandidate'
 const POPUP_EVENT_NOTICE = 'awardEventNotice'
-const POPUP_IDS = [POPUP_NOMINATE, POPUP_EVENT_NOTICE]
+/*
+ * 어떤 팝업을 띄울지는 관리 화면에서 정합니다.
+ *
+ * usePopups 는 '오늘 하루 보지 않기' 를 팝업 id 별로 기억하므로, 목록이 달라져도 각자의 기억은
+ * 그대로 남습니다. 꺼 둔 팝업은 목록에서 빠지고, 다시 켜면 예전 기억을 그대로 따릅니다.
+ */
 
 const CRITERIA = [
   {
@@ -52,7 +58,6 @@ const SCHEDULE_ICONS: Record<string, string> = {
 
 /** 원본 index.html */
 function HomePage() {
-  const popups = usePopups(POPUP_IDS)
   const homescreen = useConfig(HOMESCREEN_CONFIG, parseHomescreen)
   /*
    * 홈 화면은 받아 오지 못해도 빈 칸을 남기지 않습니다.
@@ -60,7 +65,16 @@ function HomePage() {
    * 포스터가 비면 첫 화면 가운데가 텅 비고, 이메일이 비면 문의 문구가 이상해집니다. 그래서 이
    * 설정만 오류를 화면에 띄우지 않고 기본값으로 대신합니다 (원인은 콘솔에 남습니다).
    */
-  const home = homescreen.data ?? HOMESCREEN_DEFAULT
+  const home = homescreen.data ?? homescreenDefault()
+  // 설정을 받아 오기 전에는 팝업을 띄우지 않습니다 - 잘못된 달이 잠깐 보이는 편보다 낫습니다.
+  const popupIds = useMemo(() => {
+    if (!homescreen.data) return []
+    return [
+      ...(homescreen.data.recommendationPopup.on ? [POPUP_NOMINATE] : []),
+      ...(homescreen.data.awardNoticePopup.on ? [POPUP_EVENT_NOTICE] : []),
+    ]
+  }, [homescreen.data])
+  const popups = usePopups(popupIds)
   /*
    * 포스터는 첫 화면 맨 위에서 바로 보이므로 크기가 그대로 체감됩니다.
    *
@@ -78,12 +92,15 @@ function HomePage() {
       <PopupLayer open={popups.anyOpen} onDismiss={popups.closeAll}>
         {popups.isOpen(POPUP_NOMINATE) && (
           <NominateYourCandidatePopup
+            month={home.recommendationPopup.month}
             onClose={() => popups.close(POPUP_NOMINATE)}
             onHideToday={() => popups.hideToday(POPUP_NOMINATE)}
           />
         )}
-        {popups.isOpen(POPUP_EVENT_NOTICE) && (
+        {popups.isOpen(POPUP_EVENT_NOTICE) && home.awardNoticePopup.on && (
           <AwardEventNoticePopup
+            ceremonyTime={home.awardNoticePopup.ceremonyTime}
+            location={home.awardNoticePopup.location}
             onClose={() => popups.close(POPUP_EVENT_NOTICE)}
             onHideToday={() => popups.hideToday(POPUP_EVENT_NOTICE)}
           />
