@@ -1,4 +1,5 @@
 import { ConfigError, isRecord } from './config'
+import type { ScheduleEntry } from './schedules'
 
 /** 홈 화면 설정 (`/api/v0/homescreen`). */
 export const HOMESCREEN_CONFIG = 'homescreen'
@@ -36,6 +37,13 @@ export interface Homescreen {
   businessHours: string
   recommendationPopup: RecommendationPopup
   awardNoticePopup: AwardNoticePopup
+  /**
+   * 첫 화면 '시상식 주요 일정' 에 따로 적어 둔 일정.
+   *
+   * null 이면 따로 적은 것이 없다는 뜻이고, 일정은 시상식 설정에서 만듭니다. 빈 배열은 '일정을
+   * 하나도 보여 주지 않기로 정함' 이라 null 과 다릅니다.
+   */
+  awardSchedule: ScheduleEntry[] | null
   homescreenConfigLastUpdated: number
 }
 
@@ -60,7 +68,41 @@ export function homescreenDefault(): Homescreen {
     businessHours: '09:00 - 18:00',
     recommendationPopup: { on: true, month: seoulMonthNow() },
     awardNoticePopup: { on: false },
+    awardSchedule: null,
     homescreenConfigLastUpdated: 0,
+  }
+}
+
+/** 홈 화면 설정에 적는 일정 한 줄의 원본 모양 (backend HomescreenAwardScheduleSchema). */
+export interface RawHomescreenScheduleEntry {
+  awardYear: number
+  awardMonth: number
+  /** 시상 시각 (밀리초). 정해지지 않았으면 적지 않습니다. */
+  awardTime?: number
+  /** 장소. 정해지지 않았으면 적지 않습니다. */
+  awardLocation?: string
+  isAwardOfTheYear: boolean
+}
+
+export function scheduleEntryFromRaw(raw: RawHomescreenScheduleEntry): ScheduleEntry {
+  return {
+    year: raw.awardYear,
+    month: raw.awardMonth,
+    time: raw.awardTime ?? null,
+    location: raw.awardLocation ?? '',
+    ofTheYear: raw.isAwardOfTheYear,
+  }
+}
+
+/** 정해지지 않은 시각·장소는 빈 값으로 두지 않고 아예 뺍니다 (선택 항목이라는 뜻을 지킵니다). */
+export function scheduleEntryToRaw(entry: ScheduleEntry): RawHomescreenScheduleEntry {
+  return {
+    awardYear: entry.year,
+    awardMonth: entry.month,
+    ...(entry.time !== null ? { awardTime: entry.time } : {}),
+    // 다듬지 않고 그대로 둡니다. 편집 중에 매번 다듬으면 낱말 사이 띄어쓰기를 칠 수가 없습니다.
+    ...(entry.location.trim() !== '' ? { awardLocation: entry.location } : {}),
+    isAwardOfTheYear: entry.ofTheYear,
   }
 }
 
@@ -77,6 +119,8 @@ export interface RawHomescreenConfig {
   homescreenThisMonthAwardPopupConfig:
     | { thisMonthAwardCeremonyPopupOn: false }
     | { thisMonthAwardCeremonyPopupOn: true; thisMonthAwardCeremonyTime: number; thisMonthAwardCeremonyLocation: string }
+  /** 없으면 첫 화면 일정은 시상식 설정을 따릅니다. 저장할 때 키째로 빠집니다. */
+  homescreenAwardSchedule?: RawHomescreenScheduleEntry[]
   homescreenConfigLastUpdated: number
 }
 
@@ -119,6 +163,28 @@ function readAwardNoticePopup(raw: unknown): AwardNoticePopup {
 }
 
 /**
+ * 따로 적어 둔 일정.
+ *
+ * 항목이 없으면 null (시상식 설정을 따름). 연·월이 올바르지 않은 줄은 그 줄만 버립니다 - 한 줄
+ * 때문에 일정표 전체가 시상식 설정으로 돌아가면, 관리자가 정한 것과 다른 일정이 조용히 나옵니다.
+ */
+function readAwardSchedule(raw: unknown): ScheduleEntry[] | null {
+  if (!Array.isArray(raw)) return null
+  return raw.filter(isRecord).flatMap((item) => {
+    const { awardYear: year, awardMonth: month, awardTime: time, awardLocation: location } = item
+    if (typeof year !== 'number' || !Number.isInteger(year)) return []
+    if (typeof month !== 'number' || !Number.isInteger(month) || month < 1 || month > 12) return []
+    return [{
+      year,
+      month,
+      time: typeof time === 'number' && Number.isFinite(time) ? time : null,
+      location: typeof location === 'string' ? location : '',
+      ofTheYear: item.isAwardOfTheYear === true,
+    }]
+  })
+}
+
+/**
  * 홈 화면 설정을 읽습니다.
  *
  * 항목이 하나 빠졌다고 화면을 비우지 않고, 빠진 항목만 기본값으로 채웁니다. 최상위가 객체가
@@ -135,6 +201,7 @@ export function parseHomescreen(raw: unknown): Homescreen {
     businessHours: stringOr(raw, 'businessHours', fallback.businessHours),
     recommendationPopup: readRecommendationPopup(raw.homescreenRecommendationPopupConfig),
     awardNoticePopup: readAwardNoticePopup(raw.homescreenThisMonthAwardPopupConfig),
+    awardSchedule: readAwardSchedule(raw.homescreenAwardSchedule),
     homescreenConfigLastUpdated: typeof lastUpdated === 'number' ? lastUpdated : 0,
   }
 }

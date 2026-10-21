@@ -185,6 +185,23 @@
   margin-top: 28px;
 }
 
+/* 한꺼번에 막을 수 있게 묶는 틀. 테두리·여백은 없앱니다. */
+.fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* 막힌 동안은 흐리게 보여, 고칠 수 없는 상태임을 알립니다. */
+.fieldset:disabled {
+  opacity: 0.6;
+}
+
+.fieldset > .subHead {
+  margin-top: 12px;
+}
+
 /* ---------- 시상식 ---------- */
 
 .ceremonyList {
@@ -586,4 +603,94 @@ input.input {
 
 .termTable tr:last-child td {
   border-bottom: 0;
+}
+
+/* ---------- 첫 화면 시상식 일정 ---------- */
+
+/* 바로 위 카드에 이어 붙는 카드. 구역 제목 없이 카드끼리의 간격만 둡니다. */
+.stackedCard {
+  margin-top: 12px;
+}
+
+.scheduleTable {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 연도 · 월 · 일시 · 장소 · 올해의 언론인상 · 지우기, 그 아래 미리 보기. */
+.scheduleRow {
+  display: grid;
+  grid-template-columns: 96px 72px minmax(200px, 1.3fr) minmax(140px, 1fr) 96px 40px;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.scheduleHeader {
+  color: var(--on-surface-variant);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* 머리줄에 칸 이름이 있으므로 넓은 화면에서는 체크 상자만 보입니다. */
+.scheduleAnnual {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+}
+
+.scheduleAnnualText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.scheduleHeader > :nth-child(5) {
+  text-align: center;
+}
+
+.schedulePreview {
+  grid-column: 1 / -1;
+  color: var(--outline);
+  font-size: 12px;
+}
+
+/* 좁은 화면: 연·월을 한 줄에, 일시·장소는 한 줄씩, 맨 아래에 올해의 언론인상과 지우기. */
+@media (max-width: 760px) {
+  .scheduleRow {
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--outline-variant);
+  }
+
+  .scheduleHeader {
+    display: none;
+  }
+
+  .scheduleRow > input[type='datetime-local'],
+  .scheduleRow > input[type='text'] {
+    grid-column: 1 / -1;
+  }
+
+  .scheduleAnnual {
+    justify-content: flex-start;
+  }
+
+  .scheduleAnnualText {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+  }
+
+  .scheduleRow > .iconButton {
+    justify-self: end;
+  }
 }

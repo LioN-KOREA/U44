@@ -119,6 +119,19 @@ export const HomescreenThisMonthAwardPopupConfigEnabledSchema = v.object({
 })
 export const HomescreenThisMonthAwardPopupConfigSchema = v.union([HomescreenThisMonthAwardPopupConfigDisabledSchema, HomescreenThisMonthAwardPopupConfigEnabledSchema]);
 
+/*
+ * One row of the home screen's award schedule, when the home screen keeps its own instead of
+ * following the award config. Time and location are optional: the page shows "일정 추후 안내" with no
+ * time, and "장소 추후 안내" with a time but no location.
+ */
+export const HomescreenAwardScheduleSchema = v.object({
+    awardYear : v.pipe(v.number(), v.integer()),
+    awardMonth : v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(12)),
+    awardTime : v.optional(v.number()),
+    awardLocation : v.optional(v.string()),
+    isAwardOfTheYear : v.boolean(),
+})
+
 export const HomescreenConfigSchema = v.object({
     mainBannerImage : v.fallback(v.string(), ""),
     /* Alt text for the banner, for anyone who cannot see it. Changed whenever the banner changes. */
@@ -128,6 +141,12 @@ export const HomescreenConfigSchema = v.object({
     homescreenRecommendationPopupConfig : v.fallback(HomescreenRecommendationPopupConfigSchema, () => ({ recommendationPopupOn : true, recommendationMonth : seoulMonthNow() })),
     homescreenThisMonthAwardPopupConfig : v.fallback(HomescreenThisMonthAwardPopupConfigSchema, { thisMonthAwardCeremonyPopupOn : false }),
     homescreenConfigLastUpdated : v.number(),
+    /*
+     * Absent = the home screen follows the award config. Present (even empty) = this list is what
+     * the home screen shows. No fallback: it would turn one bad row into "follow the award config",
+     * silently showing a schedule the editor did not choose.
+     */
+    homescreenAwardSchedule : v.optional(v.array(HomescreenAwardScheduleSchema)),
 })
 
 /* -------------------------------------------------------------------------- */

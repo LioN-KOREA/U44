@@ -199,6 +199,47 @@ describe("home screen popups", () => {
 });
 
 /* -------------------------------------------------------------------------- */
+/* 첫 화면 시상식 일정                                                          */
+/* -------------------------------------------------------------------------- */
+
+describe("home screen award schedule", () => {
+    const base = {
+        mainBannerImage: "", mainBannerAltText: "", contactEmailAddr: "", businessHours: "",
+        homescreenConfigLastUpdated: 0,
+    };
+
+    it("stores the schedule and serves it publicly, time and location optional", async () => {
+        const schedule = [
+            { awardYear: 2026, awardMonth: 11, awardTime: 1792000000000, awardLocation: "프레스센터", isAwardOfTheYear: false },
+            { awardYear: 2026, awardMonth: 12, isAwardOfTheYear: true },
+        ];
+        const saved = await handleRequest(request("POST", "/api/management/v0/homescreen", { ...base, homescreenAwardSchedule: schedule }));
+        expect(saved.status).toBe(200);
+        expect(JSON.parse(putCalls[0]!.content).homescreenAwardSchedule).toEqual(schedule);
+
+        const res = await handleRequest(request("GET", "/api/v0/homescreen"));
+        expect((res.body as any).homescreenAwardSchedule).toEqual(schedule);
+    });
+
+    it("leaves the key out when the schedule follows the award config", async () => {
+        // 키가 없다는 것 자체가 '시상식 설정을 따름' 이라는 뜻입니다. 빈 배열로 채우면 안 됩니다.
+        await handleRequest(request("POST", "/api/management/v0/homescreen", base));
+        expect("homescreenAwardSchedule" in JSON.parse(putCalls[0]!.content)).toBe(false);
+
+        const res = await handleRequest(request("GET", "/api/v0/homescreen"));
+        expect("homescreenAwardSchedule" in (res.body as any)).toBe(false);
+    });
+
+    it("rejects a row with a month outside 1~12 rather than dropping the schedule", async () => {
+        const res = await handleRequest(request("POST", "/api/management/v0/homescreen", {
+            ...base, homescreenAwardSchedule: [{ awardYear: 2026, awardMonth: 0, isAwardOfTheYear: false }],
+        }));
+        expect(res.status).toBe(400);
+        expect(putCalls).toHaveLength(0);
+    });
+});
+
+/* -------------------------------------------------------------------------- */
 /* 우수사례 (config3)                                                          */
 /* -------------------------------------------------------------------------- */
 

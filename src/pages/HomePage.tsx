@@ -9,7 +9,12 @@ import { paths } from '../navigation'
 import { HOMESCREEN_CONFIG, homescreenDefault, parseHomescreen } from '../data/homescreen'
 import { useThumbnail } from '../hooks/useThumbnail'
 import { AWARDS_CONFIG } from '../data/awards'
-import { formatCeremonyShort, parseAwardSchedule, scheduleRows } from '../data/schedules'
+import {
+  buildSchedulesFromEntries,
+  formatCeremonyShort,
+  parseAwardSchedule,
+  scheduleRows,
+} from '../data/schedules'
 import { useConfig } from '../hooks/useConfig'
 import styles from './HomePage.module.css'
 import AwardEventNoticePopup from '../components/AwardEventNoticePopup'
@@ -83,8 +88,21 @@ function HomePage() {
    * 축소본이 후보로 들어갑니다 (useThumbnail 이 두 경우를 모두 다룹니다).
    */
   const poster = useThumbnail(home.mainBannerImage)
-  // 일정은 시상식 설정에서 만듭니다 (수상자 화면과 같은 설정, 같은 캐시).
-  const schedules = useConfig(AWARDS_CONFIG, parseAwardSchedule)
+  /*
+   * 일정은 홈 화면 설정에 따로 적어 둔 것이 있으면 그것을, 없으면 시상식 설정을 씁니다
+   * (수상자 화면과 같은 설정, 같은 캐시).
+   *
+   * 홈 화면 설정이 오기 전에는 어느 쪽을 쓸지 모르므로 아무것도 그리지 않습니다. 시상식 일정을
+   * 먼저 그렸다가 따로 적은 일정으로 바꿔 그리면, 잠깐이지만 틀린 일정이 보입니다. 홈 화면 설정을
+   * 받아 오지 못했으면 시상식 설정으로 그립니다.
+   */
+  const awardSchedules = useConfig(AWARDS_CONFIG, parseAwardSchedule)
+  const ownSchedule = homescreen.data?.awardSchedule ?? null
+  const schedules = homescreen.loading
+    ? { data: null, error: null }
+    : ownSchedule
+      ? { data: buildSchedulesFromEntries(ownSchedule), error: null }
+      : awardSchedules
 
   return (
     <>

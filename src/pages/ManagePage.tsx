@@ -26,7 +26,19 @@ import {
   saveSocialMediaConfig,
   seoulYearMonth,
 } from '../data/manage'
-import { homescreenDefault, seoulMonthNow, type RawHomescreenConfig } from '../data/homescreen'
+import {
+  homescreenDefault,
+  scheduleEntryFromRaw,
+  scheduleEntryToRaw,
+  seoulMonthNow,
+  type RawHomescreenConfig,
+} from '../data/homescreen'
+import {
+  awardDataToEntries,
+  entriesShownOnSchedule,
+  formatCeremonyShort,
+  type ScheduleEntry,
+} from '../data/schedules'
 import type { RawSocialMediaConfig } from '../data/socialMedia'
 import type { RawExemplaryCasesConfig } from '../data/exemplaryCases'
 import type { RawGlossaryConfig } from '../data/terms'
@@ -286,6 +298,22 @@ function ManagePage() {
         if (!Number.isInteger(month) || month < 1 || month > 12) {
           throw new Error('언론인 추천 안내 팝업: 달은 1~12 사이여야 합니다.')
         }
+        const schedule = home.homescreenAwardSchedule ?? []
+        const badAt = schedule.findIndex(
+          (item) =>
+            !Number.isInteger(item.awardYear) ||
+            !Number.isInteger(item.awardMonth) ||
+            item.awardMonth < 1 ||
+            item.awardMonth > 12,
+        )
+        if (badAt !== -1) {
+          throw new Error(`첫 화면 시상식 일정 ${badAt + 1}번: 연도와 월(1~12)을 확인해 주세요.`)
+        }
+        // 일정표는 해마다 올해의 언론인상을 한 회차만 그립니다. 둘이면 하나가 조용히 빠집니다.
+        const annualYears = schedule.filter((item) => item.isAwardOfTheYear).map((item) => item.awardYear)
+        if (new Set(annualYears).size !== annualYears.length) {
+          throw new Error('첫 화면 시상식 일정: 올해의 언론인상은 한 해에 한 회차만 둘 수 있습니다.')
+        }
         await saveHomescreenConfig(home)
         stillDirty.home = false
       } catch (err) {
@@ -383,7 +411,7 @@ function ManagePage() {
         <p className={styles.status}>설정을 불러오는 중입니다…</p>
       )}
 
-      {home && <HomescreenEditor config={home} library={library} onChange={patchHome} />}
+      {home && <HomescreenEditor config={home} awardDraft={draft} library={library} onChange={patchHome} />}
       {social && <SocialMediaEditor config={social} library={library} onChange={patchSocial} />}
 
       {draft && (
@@ -520,10 +548,13 @@ function ManagePage() {
 
 function HomescreenEditor({
   config,
+  awardDraft,
   library,
   onChange,
 }: {
   config: RawHomescreenConfig
+  /** 시상식 설정 (편집 중인 것). '시상식 스케줄과 동일한 정보 사용' 일 때 보여 줄 일정의 출처. */
+  awardDraft: RawAwardConfig | null
   library: AssetLibrary
   onChange: (changes: Partial<RawHomescreenConfig>) => void
 }) {
@@ -601,8 +632,221 @@ function HomescreenEditor({
         </div>
       </div>
 
+      <HomescreenScheduleSettings config={config} awardDraft={awardDraft} onChange={onChange} />
       <PopupSettings config={config} onChange={onChange} />
     </section>
+  )
+}
+
+/* -------------------------------------------------------------------------- */
+/* 첫 화면 시상식 일정                                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * 시상식 설정에서 만든, 첫 화면에 나오는 일정.
+ *
+ * 편집 중인 설정이 아직 올바르지 않을 수 있어 (예: 끝난 시상식에 날짜를 지운 직후) 읽지 못하면
+ * 빈 목록으로 둡니다. 저장할 때의 검사는 시상식 쪽이 따로 합니다.
+ */
+function scheduleFromAwards(draft: RawAwardConfig | null): ScheduleEntry[] {
+  if (!draft) return []
+  try {
+    // 첫 화면 카드와 같은 순서로: 이달의 언론인상을 달 순서대로, 올해의 언론인상은 맨 끝에.
+    return entriesShownOnSchedule(awardDataToEntries(parseAwardData(draft))).sort(
+      (a, b) => Number(a.ofTheYear) - Number(b.ofTheYear) || a.month - b.month,
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
+ * 첫 화면 '시상식 주요 일정' 을 시상식 설정과 따로 정합니다.
+ *
+ * '시상식 스케줄과 동일한 정보 사용' 이 켜져 있으면 homescreenAwardSchedule 을 아예 빼고 저장하고,
+ * 첫 화면은 시상식 설정으로 일정을 만듭니다. 이때 아래 목록은 그 일정을 보여만 주고 고칠 수 없습니다.
+ *
+ * 체크를 풀면 지금 첫 화면에 나오는 일정(시상식 설정에서 만든 것)을 출발점으로 채웁니다. 빈 목록에서
+ * 시작하면 체크를 푸는 순간 첫 화면 일정이 통째로 사라진 것처럼 보입니다.
+ */
+function HomescreenScheduleSettings({
+  config,
+  awardDraft,
+  onChange,
+}: {
+  config: RawHomescreenConfig
+  awardDraft: RawAwardConfig | null
+  onChange: (changes: Partial<RawHomescreenConfig>) => void
+}) {
+  const own = config.homescreenAwardSchedule
+  const followsAwards = own === undefined
+  const fromAwards = scheduleFromAwards(awardDraft)
+  /* 체크했다가 다시 풀면, 그사이 적어 둔 일정을 되살립니다 (저장 전까지만). */
+  const stashed = useRef<RawHomescreenConfig['homescreenAwardSchedule']>(undefined)
+
+  const entries = followsAwards ? fromAwards : own.map(scheduleEntryFromRaw)
+
+  const setFollowsAwards = (follow: boolean) => {
+    if (follow) {
+      stashed.current = own
+      onChange({ homescreenAwardSchedule: undefined })
+    } else {
+      onChange({ homescreenAwardSchedule: stashed.current ?? fromAwards.map(scheduleEntryToRaw) })
+    }
+  }
+
+  const replaceEntries = (next: ScheduleEntry[]) =>
+    onChange({ homescreenAwardSchedule: next.map(scheduleEntryToRaw) })
+
+  const addEntry = () => {
+    const { year, month } = seoulYearMonth(Date.now())
+    replaceEntries([...entries, { year, month, time: null, location: '', ofTheYear: false }])
+  }
+
+  return (
+    <article className={`${styles.ceremony} ${styles.stackedCard}`}>
+      <div className={styles.ceremonyHead}>
+        <span className={styles.ceremonyTitle}>첫 화면 시상식 일정</span>
+        <label className={styles.completeToggle}>
+          <input
+            type="checkbox"
+            checked={followsAwards}
+            onChange={(e) => setFollowsAwards(e.target.checked)}
+          />
+          시상식 스케줄과 동일한 정보 사용
+        </label>
+      </div>
+      <div className={styles.ceremonyBody}>
+        <p className={styles.hint}>
+          {followsAwards
+            ? '시상식 설정의 일정을 그대로 보여 줍니다. 첫 화면만 다르게 하려면 체크를 풀어 주세요.'
+            : '첫 화면에는 여기 적은 일정이 나옵니다. 시상식 설정을 고쳐도 첫 화면 일정은 바뀌지 않습니다.'}{' '}
+          가장 최근 연도의 회차만 나오고, 일시를 비우면 ‘일정 추후 안내’, 장소만 비우면 ‘장소 추후 안내’ 로
+          표시됩니다.
+        </p>
+
+        {/* fieldset 의 disabled 는 안의 입력칸과 단추를 한꺼번에 막습니다. */}
+        <fieldset className={styles.fieldset} disabled={followsAwards}>
+          {entries.length > 0 ? (
+            <div className={styles.scheduleTable}>
+              {/* 칸 이름은 머리줄에 한 번만 적습니다. 줄마다 적으면 표가 두 배로 길어집니다. */}
+              <div className={`${styles.scheduleRow} ${styles.scheduleHeader}`} aria-hidden="true">
+                <span>연도</span>
+                <span>월</span>
+                <span>시상 일시 (선택)</span>
+                <span>장소 (선택)</span>
+                <span>올해의 언론인상</span>
+                <span />
+              </div>
+              {entries.map((entry, index) => (
+                <ScheduleEntryRow
+                  key={index}
+                  entry={entry}
+                  onChange={(changes) =>
+                    replaceEntries(entries.map((e, i) => (i === index ? { ...e, ...changes } : e)))
+                  }
+                  onRemove={() => replaceEntries(entries.filter((_, i) => i !== index))}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptyNote}>
+              {followsAwards ? '시상식 설정에 일정이 없습니다.' : '첫 화면에 보여 줄 일정이 없습니다.'}
+            </p>
+          )}
+          {!followsAwards && (
+            <div className={styles.subHead}>
+              <button type="button" className={styles.secondaryButton} onClick={addEntry}>
+                <Icon name="add" /> 일정 추가
+              </button>
+            </div>
+          )}
+        </fieldset>
+      </div>
+    </article>
+  )
+}
+
+/**
+ * 일정 한 줄. 연·월·일시·장소를 한 줄에 두고, 첫 화면에 어떻게 보일지를 바로 아래에 작게 적습니다.
+ *
+ * 칸 이름은 머리줄에만 있으므로, 화면 읽기 프로그램을 위해 입력칸마다 aria-label 을 붙입니다.
+ */
+function ScheduleEntryRow({
+  entry,
+  onChange,
+  onRemove,
+}: {
+  entry: ScheduleEntry
+  onChange: (changes: Partial<ScheduleEntry>) => void
+  onRemove: () => void
+}) {
+  /* 날짜를 고르면 연·월도 따라 바뀝니다 (시상식 편집과 같은 규칙). */
+  const onDateTimeChange = (value: string) => {
+    const epochMs = dateTimeInputToEpoch(value)
+    if (epochMs === undefined) {
+      onChange({ time: null })
+      return
+    }
+    const { year, month } = seoulYearMonth(epochMs)
+    onChange({ time: epochMs, year, month })
+  }
+
+  const preview = formatCeremonyShort({
+    month: entry.month,
+    dateTime: entry.time === null ? null : new Date(entry.time),
+    venue: entry.location.trim() || null,
+  })
+  const name = `${entry.year}년 ${entry.month}월`
+
+  return (
+    <div className={styles.scheduleRow}>
+      <input
+        type="number"
+        className={styles.input}
+        aria-label={`${name} - 연도`}
+        value={entry.year}
+        onChange={(e) => onChange({ year: Number(e.target.value) })}
+      />
+      <input
+        type="number"
+        min={1}
+        max={12}
+        className={styles.input}
+        aria-label={`${name} - 월`}
+        value={entry.month}
+        onChange={(e) => onChange({ month: Number(e.target.value) })}
+      />
+      <input
+        type="datetime-local"
+        className={styles.input}
+        aria-label={`${name} - 시상 일시 (한국 시각, 선택)`}
+        value={epochToDateTimeInput(entry.time ?? undefined)}
+        onChange={(e) => onDateTimeChange(e.target.value)}
+      />
+      <input
+        type="text"
+        className={styles.input}
+        aria-label={`${name} - 장소 (선택)`}
+        placeholder="장소 추후 안내"
+        value={entry.location}
+        onChange={(e) => onChange({ location: e.target.value })}
+      />
+      <label className={styles.scheduleAnnual}>
+        <input
+          type="checkbox"
+          checked={entry.ofTheYear}
+          onChange={(e) => onChange({ ofTheYear: e.target.checked })}
+        />
+        <span className={styles.scheduleAnnualText}>올해의 언론인상</span>
+      </label>
+      <button type="button" className={styles.iconButton} aria-label={`${name} 일정 지우기`} onClick={onRemove}>
+        <Icon name="delete" />
+      </button>
+      <p className={styles.schedulePreview}>
+        첫 화면 표시: {entry.month}월 · {preview}
+      </p>
+    </div>
   )
 }
 

@@ -16,6 +16,9 @@ import { parseAwardData, type AwardCeremony, type AwardData } from './awards'
 /** 일정이 정해지지 않은 회차에 보여 줄 문구. */
 export const SCHEDULE_TBD = '일정 추후 안내'
 
+/** 날짜는 정해졌지만 장소가 아직인 회차에 덧붙이는 문구. */
+export const VENUE_TBD = '장소 추후 안내'
+
 /** 올해의 언론인상 회차가 아직 없을 때 달 자리에 보여 줄 문구. */
 const ANNUAL_MONTH_UNKNOWN = '올해의 시상식'
 
@@ -70,29 +73,70 @@ function seoulParts(date: Date) {
 }
 
 /**
- * 시상식 목록으로 일정표를 만듭니다.
- * 가장 최근 연도의 회차들을 달 순서대로 이달의/올해의 언론인상으로 나눕니다.
+ * 일정표 한 회차의 재료.
+ *
+ * 일정은 두 곳에서 올 수 있습니다: 시상식 설정(기본), 또는 홈 화면 설정에 따로 적어 둔 일정.
+ * 어느 쪽이든 이 모양으로 모은 다음 같은 규칙으로 일정표를 만들어, 출처에 따라 화면이 달라지지
+ * 않게 합니다.
  */
-const toCeremony = (ceremony: AwardCeremony): Ceremony => ({
-  month: ceremony.month,
-  dateTime: ceremony.ceremonyTime === null ? null : new Date(ceremony.ceremonyTime),
-  venue: ceremony.location || null,
+export interface ScheduleEntry {
+  year: number
+  month: number
+  /** 확정된 시각 (밀리초). 아직 정해지지 않았으면 null. */
+  time: number | null
+  /** 장소. 아직 정해지지 않았으면 빈 문자열. */
+  location: string
+  /** '올해의 언론인상' 회차인지. */
+  ofTheYear: boolean
+}
+
+const thisYearInSeoul = () =>
+  Number(new Intl.DateTimeFormat('en-US', { timeZone: SEOUL, year: 'numeric' }).format(new Date()))
+
+/** 시상식 설정을 일정 재료로 바꿉니다. */
+export function awardDataToEntries(data: AwardData): ScheduleEntry[] {
+  const toEntry = (ceremony: AwardCeremony): ScheduleEntry => ({
+    year: ceremony.year,
+    month: ceremony.month,
+    time: ceremony.ceremonyTime,
+    location: ceremony.location,
+    ofTheYear: ceremony.ofTheYear,
+  })
+  return [...data.monthly.map(toEntry), ...(data.ofTheYear ? [toEntry(data.ofTheYear)] : [])]
+}
+
+/** 일정표가 보여 주는 해: 적힌 회차 중 가장 최근 연도. 회차가 없으면 올해. */
+function scheduleYear(entries: readonly ScheduleEntry[]): number {
+  return entries.length > 0 ? Math.max(...entries.map((entry) => entry.year)) : thisYearInSeoul()
+}
+
+/** 일정표에 실제로 나오는 회차들 (가장 최근 연도의 것만). */
+export function entriesShownOnSchedule(entries: readonly ScheduleEntry[]): ScheduleEntry[] {
+  const year = scheduleYear(entries)
+  return entries.filter((entry) => entry.year === year)
+}
+
+const toCeremony = (entry: ScheduleEntry): Ceremony => ({
+  month: entry.month,
+  dateTime: entry.time === null ? null : new Date(entry.time),
+  venue: entry.location || null,
 })
 
-export function buildSchedules(data: AwardData): Schedules {
-  const known = data.all
-  const year =
-    known.length > 0
-      ? Math.max(...known.map((ceremony) => ceremony.year))
-      : Number(new Intl.DateTimeFormat('en-US', { timeZone: SEOUL, year: 'numeric' }).format(new Date()))
+/**
+ * 일정 재료로 일정표를 만듭니다.
+ * 가장 최근 연도의 회차들을 달 순서대로 이달의/올해의 언론인상으로 나눕니다.
+ */
+export function buildSchedulesFromEntries(entries: readonly ScheduleEntry[]): Schedules {
+  const year = scheduleYear(entries)
+  const shown = entries.filter((entry) => entry.year === year)
 
-  const monthly = data.monthly
-    .filter((ceremony) => ceremony.year === year)
+  const monthly = shown
+    .filter((entry) => !entry.ofTheYear)
     .sort((a, b) => a.month - b.month)
     .map(toCeremony)
 
-  const ofTheYear = data.ofTheYear
-  const annual = ofTheYear && ofTheYear.year === year ? [toCeremony(ofTheYear)] : []
+  const ofTheYear = shown.find((entry) => entry.ofTheYear)
+  const annual = ofTheYear ? [toCeremony(ofTheYear)] : []
 
   const groups: AwardSchedule[] = [
     { id: 'monthly', title: AWARD_TITLES.monthly, ceremonies: monthly },
@@ -105,6 +149,10 @@ export function buildSchedules(data: AwardData): Schedules {
     year,
     awards: groups.filter((group) => group.id === 'annual' || group.ceremonies.length > 0),
   }
+}
+
+export function buildSchedules(data: AwardData): Schedules {
+  return buildSchedulesFromEntries(awardDataToEntries(data))
 }
 
 /** 설정 원본으로 바로 일정표를 만듭니다 (useConfig 에 넘기는 용도). */
@@ -129,11 +177,19 @@ function withVenue(text: string, venue: string | null): string {
   return venue ? `${text} · ${venue}` : text
 }
 
-/** 홈 카드용 짧은 형태: '8.24.(월) 오전 11시 · 프레스센터 매화홀' */
+/**
+ * 홈 카드용 짧은 형태: '8.24.(월) 오전 11시 · 프레스센터 매화홀'
+ *
+ * 날짜가 없으면 장소가 있어도 '일정 추후 안내' 만 적습니다 (언제인지 모르는 장소는 안내가 되지
+ * 않습니다). 날짜만 있으면 장소 자리에 '장소 추후 안내' 를 적습니다.
+ */
 export function formatCeremonyShort(ceremony: Ceremony | null): string {
   if (!ceremony?.dateTime) return SCHEDULE_TBD
   const p = seoulParts(ceremony.dateTime)
-  return withVenue(`${p.month}.${p.day}.(${p.weekday}) ${formatClock(p.hour, p.minute)}`, ceremony.venue)
+  return withVenue(
+    `${p.month}.${p.day}.(${p.weekday}) ${formatClock(p.hour, p.minute)}`,
+    ceremony.venue ?? VENUE_TBD,
+  )
 }
 
 /** 시상식 안내용 긴 형태: '2026. 8. 24.(월) 오전 11시 · 프레스센터 매화홀' */
