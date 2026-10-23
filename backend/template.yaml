@@ -25,25 +25,33 @@ Parameters:
       How long an uploaded-but-never-confirmed file is kept before S3 deletes it, in days.
       This is what stops abandoned uploads from piling up.
 
-  # --- 라이온코리아 IT 서비스 계정관리 시스템 (see reference.md at the repo root) ---
-  AuthUpstreamDomain:
+  # --- 라이온코리아 IT 서비스 계정관리 시스템, an OpenID Connect provider (see 연동 안내서) ---
+  OidcIssuer:
     Type: String
-    Default: d3mfomuay6suit.cloudfront.net
+    Default: https://accounts.lion-korea.it.kr
     Description: >
-      Host name of the account system, reverse-proxied at /lpx/* on this distribution.
-      Host name only - no scheme and no trailing slash.
+      The account system's OIDC issuer, with no trailing slash. Discovery
+      (/.well-known/openid-configuration), the JWKS and /lpx/auth/userInfo are all found under it,
+      and it is asserted as every access token's iss.
   AuthClientId:
     Type: String
     Default: falm03vg6r35htb27ctg7rjda
     Description: >
-      This app's client id. Sent as ?clientId= on every /lpx/auth call, and asserted as the
-      access token's client_id claim.
-  AuthUserPoolId:
+      This app's client id. Sent as client_id, and asserted as every access token's aud. There is
+      no client secret: this is a public client, and PKCE ties the code to the browser that asked.
+  OidcRedirectURI:
     Type: String
-    Default: ap-northeast-2_0FVbitEBz
+    Default: https://d1kdqje0mi6yok.cloudfront.net/manage
     Description: >
-      The Cognito user pool backing the account system. Its prefix before the underscore is the
-      region, which together build the JWKS URL used to verify tokens.
+      Where the account system sends the browser back with the code (the 관리 screen, which then
+      posts it to /api/auth/session). Must be byte-identical to a redirect URI registered on the
+      client - scheme, host, path and trailing slash.
+  OidcPostLogoutRedirectURI:
+    Type: String
+    Default: https://d1kdqje0mi6yok.cloudfront.net/
+    Description: >
+      Where the browser lands after signing out. Must be registered on the client as a logout URL,
+      or the account system ignores it and shows its own login page instead.
   ManageAuthorityId:
     Type: String
     Default: 519093fd-d789-4853-b117-45187186ccb3
@@ -128,6 +136,11 @@ Resources:
       PointInTimeRecoverySpecification:
         # The asset records cannot be rebuilt from the bucket (the names live only here).
         PointInTimeRecoveryEnabled: true
+      # Sign-in sessions ("SESSION#..." records) carry U44TTL, the time their refresh token stops
+      # working; DynamoDB removes them after that. Records without the attribute (assets) are kept.
+      TimeToLiveSpecification:
+        AttributeName: U44TTL
+        Enabled: true
       DeletionProtectionEnabled: true
 
   # ---------------------------------------------------------------------------
@@ -161,41 +174,17 @@ Resources:
             CustomOriginConfig:
               OriginProtocolPolicy: https-only
               OriginSSLProtocols: [TLSv1.2]
-          # The 라이온코리아 account system. Proxied so that the browser sees it on our own origin.
-          - Id: U44AuthOrigin
-            DomainName: !Ref AuthUpstreamDomain
-            CustomOriginConfig:
-              OriginProtocolPolicy: https-only
-              OriginSSLProtocols: [TLSv1.2]
+        # The account system is NOT proxied here. Under OIDC the browser only ever visits it by
+        # top-level navigation (/authorize, /logout), which must reach its real origin so its session
+        # cookie lands on its own domain; everything else (/token, /revoke, userInfo, the JWKS) is
+        # called by the Lambda directly. (연동 안내서 §7)
         CacheBehaviors:
-          # The auth system, reverse-proxied under our own origin.
-          #
-          # Serving it same-origin is what lets the refresh cookie stay SameSite=Lax and removes the
-          # CORS preflight; the frontend then only ever calls relative /lpx/... paths.
-          #
-          # Four things this behavior must get right (reference.md, "Proxy requirements"):
-          #   - the /lpx prefix is preserved, because the refresh cookie is scoped to
-          #     Path=/lpx/auth/token and a rewritten path would stop the browser sending it;
-          #   - Authorization, X-Sec-Token, Cookie and the query string all reach the upstream;
-          #   - nothing is cached - these responses are per-user, and a cached userInfo served to
-          #     another visitor would be an account takeover;
-          #   - the upstream receives its OWN Host, not the viewer's, or it answers 403 to
-          #     everything.
-          - PathPattern: /lpx/*
-            TargetOriginId: U44AuthOrigin
-            ViewerProtocolPolicy: https-only
-            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-            CachedMethods: [GET, HEAD]
-            Compress: true
-            # Managed-CachingDisabled: TTL 0, so responses pass straight through and Set-Cookie
-            # reaches the browser untouched.
-            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            # Managed-AllViewerExceptHostHeader: forwards every viewer header, cookie and query
-            # string, while sending the origin's own Host.
-            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
           # The API sits behind the same distribution as the assets, so the frontend needs only one
           # base URL for both. Nothing here may be cached or the management UI would read stale
           # config right after saving it.
+          #
+          # This includes /api/auth/*, where sign-in happens: the session cookie it sets is first
+          # party because the site and the API share this origin.
           - PathPattern: /api/*
             TargetOriginId: U44ApiOrigin
             ViewerProtocolPolicy: https-only
@@ -204,8 +193,8 @@ Resources:
             Compress: true
             # Managed-CachingDisabled
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
-            # Managed-AllViewerExceptHostHeader: forwards Origin/Authorization and the body, but
-            # keeps the Host that API Gateway expects.
+            # Managed-AllViewerExceptHostHeader: forwards Origin/Authorization, the session cookie
+            # and the body, but keeps the Host that API Gateway expects.
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         # The SPA's entry point, for a request to the distribution root.
         DefaultRootObject: index.html
@@ -230,7 +219,7 @@ Resources:
   #
   # This is deliberately a CloudFront Function rather than a CustomErrorResponse mapping 403 to
   # /index.html. CustomErrorResponses are distribution-wide, so they would also swallow the API's own
-  # 403 - the CORS rejection today, and the Cognito rejections later - and hand the caller an HTML
+  # 403 - the CORS rejection, and the auth guard's refusals - and hand the caller an HTML
   # page with status 200. A function attached to this one behavior cannot touch /api/*.
   U44SpaRouterFunction:
     Type: AWS::CloudFront::Function
@@ -300,16 +289,9 @@ Resources:
       # CORS is answered by the application (u44.handler.ts) so that the allow-list is decided in
       # one place. Configuring it here as well would put two sets of headers on the response.
       #
-      # To put the management routes behind Cognito later, add the authorizer here and attach it
-      # to the management routes only - the public GET must stay open:
-      #
-      # Auth:
-      #   Authorizers:
-      #     CognitoAuthorizer:
-      #       IdentitySource: $request.header.Authorization
-      #       JwtConfiguration:
-      #         issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPoolId}"
-      #         audience: [!Ref UserPoolClientId]
+      # Authentication is likewise the application's (auth/U44AuthGuard.ts): it verifies the access
+      # token against the account system's JWKS and then checks the management authority, which a
+      # gateway JWT authorizer could not do - the authorities are not in the token.
 
   U44Function:
     Type: AWS::Serverless::Function
@@ -350,11 +332,12 @@ Resources:
           U44_ASSETS_BASE_URL: !Sub "https://${U44AssetsDistribution.DomainName}"
           U44_ASSET_UPLOAD_URL_TTL_SEC: !Ref AssetUploadUrlTtlSec
           U44_DYNAMO_DB_TABLE_NAME: !Ref U44Table
-          # The account system. The Lambda calls it server-to-server, so it uses the upstream
-          # directly rather than the /lpx/* proxy (which exists for the browser's benefit).
-          U44_AUTH_BASE_URL: !Sub "https://${AuthUpstreamDomain}"
+          # The account system (OIDC). The Lambda exchanges codes and refreshes tokens itself, so the
+          # refresh token never reaches the browser.
+          U44_OIDC_ISSUER: !Ref OidcIssuer
           U44_AUTH_CLIENT_ID: !Ref AuthClientId
-          U44_AUTH_USER_POOL_ID: !Ref AuthUserPoolId
+          U44_OIDC_REDIRECT_URI: !Ref OidcRedirectURI
+          U44_OIDC_POST_LOGOUT_REDIRECT_URI: !Ref OidcPostLogoutRedirectURI
           U44_MANAGE_AUTHORITY_ID: !Ref ManageAuthorityId
       Policies:
         # The function reads and writes the config, and moves uploads between prefixes. It also
@@ -362,6 +345,7 @@ Resources:
         - S3CrudPolicy:
             BucketName: !Ref U44AssetsBucket
         # The asset records: written on confirm, read for every listing, removed on delete.
+        # Also the sign-in sessions: written on sign-in, rotated on refresh, removed on sign-out.
         - DynamoDBCrudPolicy:
             TableName: !Ref U44Table
       Events:

@@ -149,7 +149,7 @@
 
 .monthWhen {
   color: var(--on-surface-variant);
-  font-size: var(--text-body-md);
+  font-size: 0.85rem;
 }
 
 @media (min-width: 640px) {
@@ -177,7 +177,7 @@
 
 .monthWhenLight {
   color: rgba(255, 255, 255, 0.8);
-  font-size: var(--text-body-md);
+  font-size: 0.85rem;
 }
 
 /* ---------- 추천 대상 ---------- */

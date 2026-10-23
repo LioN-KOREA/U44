@@ -50,6 +50,25 @@
   font-size: 12px;
 }
 
+/* 로그인한 계정과 로그아웃. 저장 단추들과 구분되도록 왼쪽에 선을 둡니다. */
+.account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  padding-left: 12px;
+  border-left: 1px solid var(--outline-variant);
+}
+
+.accountName {
+  max-width: 160px;
+  overflow: hidden;
+  color: var(--on-surface-variant);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* ---------- 단추 ---------- */
 
 .primaryButton {

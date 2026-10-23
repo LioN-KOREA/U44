@@ -33,10 +33,11 @@ import {
 import { getAppEnv } from "./env/u44.env.js";
 import { CORS_HEADERS_REJECTED, generateCorsHeadersActual, generateCorsHeadersPreflight } from "../utils/common/CorsUtils.js";
 import { requireManageAuthority } from "./auth/U44AuthGuard.js";
+import { completeLogin, endSession, refreshSession, startLogin } from "./auth/U44SessionManager.js";
 
 const ALLOWED_ORIGINS = getAppEnv().appAllowedOriginURLs;
 
-const ALLOWED_CORS_HEADERS = ["Authorization", "Content-Type", "X-Sec-Token"];
+const ALLOWED_CORS_HEADERS = ["Authorization", "Content-Type"];
 // PATCH is here for the asset rename, which changes one field of an existing record. The browser
 // will not send a PATCH at all unless the preflight lists it.
 const ALLOWED_CORS_METHODS = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"];
@@ -197,6 +198,15 @@ const handleDeleteImageEntry : RRHandler = async (input) => {
     return deleteImageEntry(imageId);
 }
 
+/*
+ * Signing in and out (U44SessionManager). Open to everyone, like the public reads: they are how a
+ * browser gets a token in the first place, and each checks its own cookie.
+ */
+const handleLogin: RRHandler = async () => startLogin();
+const handleCompleteLogin: RRHandler = async (input) => completeLogin(input);
+const handleRefreshSession: RRHandler = async (input) => refreshSession(input);
+const handleLogout: RRHandler = async (input) => endSession(input);
+
 /** Everything under here is management, and is gated on the authority. */
 const MANAGEMENT_PATH_PREFIX = "/api/management/";
 
@@ -229,6 +239,10 @@ export const U44_HANDLERS: U44Handler[] = [
     { path: "/api/v0/social-media-posts", method: "GET", handler: handleGetSocialMediaPostsConfig },
     { path: "/api/v0/exemplary-cases", method: "GET", handler: handleGetExemplaryCasesConfig },
     { path: "/api/v0/glossary", method: "GET", handler: handleGetGlossaryConfig },
+    { path: "/api/auth/login", method: "GET", handler: handleLogin },
+    { path: "/api/auth/session", method: "POST", handler: handleCompleteLogin },
+    { path: "/api/auth/refresh", method: "POST", handler: handleRefreshSession },
+    { path: "/api/auth/logout", method: "POST", handler: handleLogout },
 ]
 const u44Router = createRouter<U44Handler>();
 U44_HANDLERS.forEach(fi => addRoute(u44Router, fi.method, fi.path, fi));

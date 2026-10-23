@@ -1,79 +1,72 @@
 // Access control for the management API.
 //
-// Two separate questions, in this order (reference.md, "Setting your app so that only those with
-// the appropriate authority can access the app"):
+// Two separate questions, in this order (연동 안내서 §5 and §6):
 //
 //   1. Is this token genuine, and was it issued to THIS app?  -> verified locally against the
-//      pool's public JWKS. No call leaves the Lambda, and no AWS credentials are involved.
+//      account system's public JWKS (U44TokenVerifier). No AWS credentials are involved.
 //   2. May this account use the management API?               -> the access token does not carry
 //      the authority list, so it is read from /lpx/auth/userInfo and cached briefly.
 //
 // A successful userInfo response is not on its own proof of anything: it says what the account may
 // do, not that the token is genuine for this client. Step 1 is never skipped.
 
-import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { getAppEnv } from "../env/u44.env.js";
 import { ResponseData } from "../../utils/reqres/reqres.js";
+import { _resetTokenVerifier, verifyAccessToken } from "./U44TokenVerifier.js";
 
 /** The outcome of a guard check: either the caller, or the response to send back. */
 export type GuardResult =
     | { ok: true; sub: string }
     | { ok: false; response: ResponseData<string> };
 
-/**
- * The verifier is built once and reused.
- *
- * It fetches and caches the JWKS itself, so building it per request would re-download the key
- * document on every call.
- */
-let verifier: ReturnType<typeof CognitoJwtVerifier.create> | null = null;
+/** What the account system says about one account. Only what this app uses is kept. */
+export type AccountInfo = {
+    authorities: string[];
+    email: string;
+    name: string;
+};
 
-function getVerifier() {
-    if (!verifier) {
-        const env = getAppEnv();
-        verifier = CognitoJwtVerifier.create({
-            userPoolId: env.appAuthUserPoolId,
-            // Asserting both of these is the point: an id token, or an access token minted for a
-            // different app client, must not open this API.
-            tokenUse: "access",
-            clientId: env.appAuthClientId,
-        });
-    }
-    return verifier;
-}
+/** Account info per `sub`, with the TTL that doubles as the authority revocation lag. */
+const ACCOUNT_TTL_MS = 60_000;
+const accountCache = new Map<string, { account: AccountInfo; expiresAt: number }>();
 
-/** Authorities per account, with the TTL that doubles as the revocation lag. */
-const AUTHORITY_TTL_MS = 60_000;
-const authorityCache = new Map<string, { authorities: string[]; expiresAt: number }>();
+const NO_ACCOUNT: AccountInfo = { authorities: [], email: "", name: "" };
 
 /**
- * The authority list for one account.
+ * What the account system says about one account: its authorities, and the name and email shown on
+ * the management screen.
  *
- * A failed lookup is never cached: a transient outage would otherwise lock everyone out for the
- * whole TTL and look exactly like a permissions problem. When the lookup fails we fall back to the
- * last known answer if there is one, and to "no authorities" if there is not.
+ * Keyed by `sub`, the only identifier that never changes. A failed lookup is never cached: a
+ * transient outage would otherwise lock everyone out for the whole TTL and look exactly like a
+ * permissions problem. When the lookup fails we fall back to the last known answer if there is one,
+ * and to "no authorities" if there is not.
  */
-async function authoritiesFor(accessToken: string, sub: string): Promise<string[]> {
-    const cached = authorityCache.get(sub);
-    if (cached && cached.expiresAt > Date.now()) return cached.authorities;
+export async function lookupAccount(accessToken: string, sub: string): Promise<AccountInfo> {
+    const cached = accountCache.get(sub);
+    if (cached && cached.expiresAt > Date.now()) return cached.account;
 
-    const env = getAppEnv();
-    const url = `${env.appAuthBaseURL}/lpx/auth/userInfo?clientId=${encodeURIComponent(env.appAuthClientId)}`;
+    const url = `${getAppEnv().appOidcIssuer}/lpx/auth/userInfo`;
     try {
         const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
         if (response.status !== 200) {
-            console.error(`The account system answered ${response.status} for the authority lookup (${sub})`);
-            return cached?.authorities ?? [];
+            console.error(`The account system answered ${response.status} for the account lookup (${sub})`);
+            return cached?.account ?? NO_ACCOUNT;
         }
-        const body = await response.json() as { data?: { authorities?: unknown } };
-        const authorities = Array.isArray(body.data?.authorities)
-            ? body.data.authorities.filter((item): item is string => typeof item === "string")
-            : [];
-        authorityCache.set(sub, { authorities, expiresAt: Date.now() + AUTHORITY_TTL_MS });
-        return authorities;
+        const body = await response.json() as {
+            data?: { authorities?: unknown; lkAccountEmail?: unknown; lkAccountName?: unknown };
+        };
+        const account: AccountInfo = {
+            authorities: Array.isArray(body.data?.authorities)
+                ? body.data.authorities.filter((item): item is string => typeof item === "string")
+                : [],
+            email: typeof body.data?.lkAccountEmail === "string" ? body.data.lkAccountEmail : "",
+            name: typeof body.data?.lkAccountName === "string" ? body.data.lkAccountName : "",
+        };
+        accountCache.set(sub, { account, expiresAt: Date.now() + ACCOUNT_TTL_MS });
+        return account;
     } catch (err) {
-        console.error(`An error occurred while reading the authorities (${sub}) : ${err}`);
-        return cached?.authorities ?? [];
+        console.error(`An error occurred while reading the account (${sub}) : ${err}`);
+        return cached?.account ?? NO_ACCOUNT;
     }
 }
 
@@ -93,7 +86,7 @@ function bearerToken(headers: Record<string, string> | undefined): string | null
  */
 export async function requireManageAuthority(headers: Record<string, string> | undefined): Promise<GuardResult> {
     const env = getAppEnv();
-    if (!env.appAuthUserPoolId || !env.appAuthClientId || !env.appManageAuthorityId) {
+    if (!env.appOidcIssuer || !env.appAuthClientId || !env.appManageAuthorityId) {
         // Refusing is the only safe answer: a missing setting must never read as "allowed".
         console.error("The authentication settings are incomplete; refusing every management request.");
         return { ok: false, response: { status: 500, body: "The server is not configured for authentication" } };
@@ -104,15 +97,14 @@ export async function requireManageAuthority(headers: Record<string, string> | u
 
     let sub: string;
     try {
-        const claims = await getVerifier().verify(token);
-        sub = claims.sub;
+        sub = (await verifyAccessToken(token)).sub;
     } catch (err) {
         // Any failure here - bad signature, wrong issuer, wrong client, expired - is a 401.
         console.error(`An access token was rejected : ${err}`);
         return { ok: false, response: { status: 401, body: "Unauthenticated" } };
     }
 
-    const authorities = await authoritiesFor(token, sub);
+    const { authorities } = await lookupAccount(token, sub);
     if (!authorities.includes(env.appManageAuthorityId)) {
         return { ok: false, response: { status: 403, body: "Not permitted" } };
     }
@@ -120,10 +112,10 @@ export async function requireManageAuthority(headers: Record<string, string> | u
     return { ok: true, sub };
 }
 
-/** Test-only: forget the cached verifier and authorities. */
+/** Test-only: forget the cached key set and account info. */
 export function _resetAuthGuard(): void {
-    verifier = null;
-    authorityCache.clear();
+    _resetTokenVerifier();
+    accountCache.clear();
 }
 
 /**
@@ -133,5 +125,5 @@ export function _resetAuthGuard(): void {
  * what a failed lookup falls back to. Clearing would hide exactly the behaviour worth testing.
  */
 export function _expireAuthorityCache(): void {
-    for (const entry of authorityCache.values()) entry.expiresAt = 0;
+    for (const entry of accountCache.values()) entry.expiresAt = 0;
 }

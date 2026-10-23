@@ -1,13 +1,13 @@
 // Stand-ins for the two things the guard depends on: the JWT verifier and the account system.
 //
-// The verifier is replaced rather than fed real tokens, because signing real ones would need the
-// pool's private key. What is genuinely exercised is everything around it: that a missing or
-// rejected token is a 401, that the authority list decides 403 vs 200, that the answer is cached,
-// and that a failed lookup is not.
+// The verifier is replaced here so these suites can use plain strings as tokens. What is exercised
+// is everything around it: that a missing or rejected token is a 401, that the authority list
+// decides 403 vs 200, that the answer is cached, and that a failed lookup is not. The verifier
+// itself is tested with real signed tokens in u44.oidc.test.ts.
 
+/** The account system's issuer in tests. */
 export const AUTH_BASE = "https://auth.example.test";
 export const CLIENT_ID = "test-client-id";
-export const USER_POOL_ID = "ap-northeast-2_TestPool";
 export const MANAGE_AUTHORITY = "519093fd-d789-4853-b117-45187186ccb3";
 
 /** Tokens the fake verifier accepts, and the `sub` each one belongs to. */
@@ -46,19 +46,16 @@ export function resetFakeAuth(): void {
     userInfoCalls.length = 0;
 }
 
-/** The module factory for `vi.mock("aws-jwt-verify", ...)`. */
-export function fakeJwtVerifyModule() {
+/** The module factory for `vi.mock("../src/u44be/auth/U44TokenVerifier.js", ...)`. */
+export function fakeTokenVerifierModule() {
     return {
-        CognitoJwtVerifier: {
-            create: () => ({
-                verify: async (token: string) => {
-                    verifyCalls.push(token);
-                    const sub = validTokens.get(token);
-                    if (!sub) throw new Error("Invalid token");
-                    return { sub, token_use: "access", client_id: CLIENT_ID };
-                },
-            }),
+        verifyAccessToken: async (token: string) => {
+            verifyCalls.push(token);
+            const sub = validTokens.get(token);
+            if (!sub) throw new Error("Invalid token");
+            return { sub, expiresAt: Date.now() + 300_000 };
         },
+        _resetTokenVerifier: () => undefined,
     };
 }
 

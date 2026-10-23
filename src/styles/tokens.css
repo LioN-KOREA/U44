@@ -129,3 +129,11 @@ select {
   vertical-align: middle;
   user-select: none;
 }
+
+/*
+ * 아이콘 이름은 본문이 아니라 생성된 글자로 그립니다 (Icon.tsx).
+ * 리거처는 생성된 글자에도 똑같이 적용되고, 검색 엔진은 생성된 글자를 본문으로 읽지 않습니다.
+ */
+.material-symbols-outlined[data-icon]::before {
+  content: attr(data-icon);
+}

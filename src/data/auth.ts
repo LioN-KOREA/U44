@@ -1,180 +1,161 @@
+import { apiBaseUrl } from './config'
+
 /**
- * 라이온코리아 IT 서비스 계정관리 시스템 연동 (reference.md 기준).
+ * 라이온코리아 계정관리 시스템(OpenID Connect) 로그인의 브라우저 쪽.
  *
- * 주소는 모두 상대 경로(`/lpx/...`)입니다. 우리 배포(CloudFront)와 개발 서버(Vite) 모두
- * `/lpx/*` 를 계정관리 시스템으로 그대로 넘겨 주도록 해 두었기 때문에, 브라우저가 보기에는
- * 같은 출처입니다. 그래서 CORS 예비 요청이 없고, 갱신 쿠키도 서드파티 쿠키가 아닙니다.
+ * 브라우저는 토큰 교환을 하지 않습니다. 코드 교환과 갱신은 백엔드(/api/auth/*)가 하고, 리프레시
+ * 토큰은 백엔드에만 남습니다 (연동 안내서 §2). 브라우저가 받는 것은 5분짜리 접근 토큰(메모리에만
+ * 둡니다)과, 백엔드가 심는 HttpOnly 세션 쿠키뿐입니다. 쿠키는 자바스크립트로 읽을 수 없으므로 XSS 가
+ * 있어도 세션을 통째로 가져갈 수 없습니다.
  *
- * 토큰은 모두 메모리에만 둡니다. localStorage·sessionStorage 에 넣으면 페이지에 XSS 가 한 번만
- * 생겨도 그대로 읽히기 때문입니다 (reference.md: "Tokens live in memory only").
+ *   로그인   : /api/auth/login 으로 이동 → 계정 시스템 로그인 화면 → /manage?code=…&state=… 로 복귀
+ *   마무리   : 그 주소의 쿼리를 /api/auth/session 에 넘겨 세션을 엽니다
+ *   갱신     : /api/auth/refresh. 새로 고친 페이지도 이것으로 로그인 상태를 되찾습니다
+ *   로그아웃 : /api/auth/logout 이 알려 주는 계정 시스템의 /logout 으로 이동 (SSO 세션까지 종료)
  */
 
-/** 이 앱의 앱 클라이언트. 비밀값이 아니며, 모든 /lpx/auth 호출에 붙습니다. */
-const CLIENT_ID = 'falm03vg6r35htb27ctg7rjda'
+const AUTH_BASE = `${apiBaseUrl}/api/auth`
 
-/** 관리 화면을 열 수 있는 권한 id. 이름이 아니라 id 로 확인합니다 (이름은 바뀔 수 있습니다). */
-export const MANAGE_AUTHORITY_ID = '519093fd-d789-4853-b117-45187186ccb3'
-
-const AUTH_BASE = '/lpx/auth'
-const CLIENT_QUERY = `?clientId=${CLIENT_ID}`
-
-/** 로그인 뒤 손에 쥐는 것. 모두 메모리에만 있습니다. */
-export interface AuthSession {
-  accessToken: string
-  idToken: string
-  /** 갱신 쿠키와 짝을 이루는 값. 갱신할 때마다 새로 발급되므로 매번 바꿔 두어야 합니다. */
-  secToken: string
-  /** 접근 토큰이 만료되는 시각 (밀리초). */
-  expiresAt: number
+/** 로그인한 계정. 백엔드가 계정 시스템에서 읽어 알려 줍니다. */
+export interface AuthUser {
+  /** 계정 ID. 바뀌지 않는 유일한 식별자입니다. */
+  sub: string
+  email: string
+  name: string
+  /**
+   * 관리 화면을 쓸 권한이 있는지. 화면을 고르는 데만 씁니다 — 관리 API 는 요청마다 서버가 다시
+   * 확인합니다.
+   */
+  canManage: boolean
 }
 
-/** `/lpx/auth/userInfo` 가 돌려주는 계정 정보. 필요한 것만 적어 둡니다. */
-export interface AuthUserInfo {
-  lkAccountSub: string
-  lkAccountEmail: string
-  lkAccountName: string
-  lkAccountRole: string
-  authorities: string[]
+export interface AuthSession {
+  accessToken: string
+  /** 접근 토큰이 만료되는 시각 (밀리초). */
+  expiresAt: number
+  user: AuthUser
 }
 
 /**
  * 로그인·갱신이 실패한 이유.
  *
- * `sessionInvalid` 는 되돌릴 수 없는 상태입니다 (갱신 토큰이 이미 회전되었거나 짝이 맞지 않아
- * 세션이 통째로 폐기된 경우). 이때는 다시 시도하지 말고 로그아웃시켜야 합니다.
+ * `sessionEnded` 는 되돌릴 수 없는 상태입니다 (만료, 폐기, 다른 곳에서 로그아웃). 다시 시도하지
+ * 말고 다시 로그인하게 해야 합니다. 그 밖의 실패(서버·네트워크 오류)는 잠시 뒤 다시 시도할 만합니다.
  */
 export class AuthError extends Error {
   readonly status: number
-  readonly sessionInvalid: boolean
+  readonly sessionEnded: boolean
 
-  constructor(status: number, message: string, sessionInvalid = false) {
+  constructor(status: number, message: string, sessionEnded = false) {
     super(message)
     this.name = 'AuthError'
     this.status = status
-    this.sessionInvalid = sessionInvalid
+    this.sessionEnded = sessionEnded
   }
 }
 
-interface TokenPayload {
-  accessToken?: unknown
-  idToken?: unknown
-  secToken?: unknown
-  expiresIn?: unknown
+function isSession(value: unknown): value is AuthSession {
+  const v = value as AuthSession | null
+  return (
+    typeof v?.accessToken === 'string' &&
+    typeof v.expiresAt === 'number' &&
+    typeof v.user?.sub === 'string' &&
+    typeof v.user.canManage === 'boolean'
+  )
 }
 
-/** 응답 본문은 항상 `{ status, message, data }` 입니다. */
-async function readBody(response: Response): Promise<{ message: string; data: unknown }> {
-  try {
-    const body = (await response.json()) as { message?: unknown; data?: unknown }
-    return {
-      message: typeof body.message === 'string' ? body.message : '',
-      data: body.data ?? null,
-    }
-  } catch {
-    return { message: '', data: null }
-  }
+/*
+ * 세션 쿠키를 함께 보냅니다. 배포본에서는 사이트와 API 가 같은 출처라 기본값으로도 가지만, 개발
+ * 서버처럼 출처가 다를 때도 같은 코드가 동작하도록 'include' 로 둡니다.
+ */
+async function post(path: string, body?: unknown): Promise<Response> {
+  return fetch(`${AUTH_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    cache: 'no-store',
+    ...(body === undefined
+      ? {}
+      : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+  })
 }
 
-function toSession(data: unknown, where: string): AuthSession {
-  const payload = (data ?? {}) as TokenPayload
-  const { accessToken, idToken, secToken, expiresIn } = payload
-  if (typeof accessToken !== 'string' || typeof idToken !== 'string' || typeof secToken !== 'string') {
-    throw new AuthError(500, `${where} 응답에 토큰이 없습니다.`)
-  }
-  // expiresIn 은 초 단위입니다 (접근 토큰은 300초).
-  const seconds = typeof expiresIn === 'number' && Number.isFinite(expiresIn) ? expiresIn : 300
-  return { accessToken, idToken, secToken, expiresAt: Date.now() + seconds * 1000 }
+/** 계정 시스템 로그인으로 보냅니다. 페이지를 떠나는 이동이라 돌아오지 않습니다. */
+export function beginLogin(): void {
+  window.location.assign(`${AUTH_BASE}/login`)
 }
 
-/** 로그인 실패를 사용자에게 보여 줄 문구로 바꿉니다. */
-function loginMessage(status: number, message: string): string {
-  switch (status) {
-    case 401:
-      // 어느 쪽이 틀렸는지 알려 주지 않습니다 (계정이 있는지 떠볼 수 없게 하려는 설계입니다).
-      return '이메일 또는 비밀번호가 올바르지 않습니다.'
-    case 403:
-      return '사용이 중지된 계정입니다. 관리자에게 문의해 주세요.'
-    case 409:
-      return '추가 인증이 필요한 계정입니다. 관리자에게 문의해 주세요.'
-    case 429:
-      return '로그인 시도가 너무 잦습니다. 잠시 뒤에 다시 시도해 주세요.'
-    case 400:
-      return '로그인 요청이 올바르지 않습니다.'
+/** 계정 시스템이 돌려보낸 주소(/manage?…)가 로그인의 마지막 단계인지. */
+export function isLoginCallback(search: string): boolean {
+  const params = new URLSearchParams(search)
+  return params.has('code') || params.has('error')
+}
+
+/** 계정 시스템이 돌려준 오류 코드를 사용자에게 보여 줄 문구로 바꿉니다. */
+function callbackErrorMessage(code: string): string {
+  switch (code) {
+    case 'access_denied':
+      return '로그인이 취소되었습니다.'
+    case 'temporarily_unavailable':
+      return '계정 시스템에 연결하지 못했습니다. 잠시 뒤에 다시 시도해 주세요.'
+    case 'invalid_client':
+      return '이 사이트의 로그인 설정이 계정 시스템에 허용되어 있지 않습니다. 관리자에게 문의해 주세요.'
     default:
-      return message || '로그인하지 못했습니다. 잠시 뒤에 다시 시도해 주세요.'
+      return '로그인하지 못했습니다. 다시 시도해 주세요.'
   }
 }
 
 /**
- * 로그인.
+ * 로그인의 마지막 단계: 돌아온 주소의 쿼리를 백엔드에 넘겨 세션을 엽니다.
  *
- * `credentials: 'include'` 가 없으면 갱신 쿠키가 저장되지 않아, 로그인은 되는데 갱신만 계속
- * 400 으로 실패하는 상태가 됩니다.
+ * code 와 state 를 검증하고 교환하는 일은 백엔드가 합니다 (state 가 이 브라우저가 받은 것과 다르면
+ * 거절됩니다). 계정 시스템이 오류를 돌려보냈으면 백엔드에 갈 것도 없이 그 문구를 보여 줍니다.
  */
-export async function login(email: string, password: string): Promise<AuthSession> {
-  const response = await fetch(`${AUTH_BASE}/login${CLIENT_QUERY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-    credentials: 'include',
-  })
-  const { message, data } = await readBody(response)
-  if (response.status !== 200) {
-    throw new AuthError(response.status, loginMessage(response.status, message))
+export async function completeLogin(search: string): Promise<AuthSession> {
+  const error = new URLSearchParams(search).get('error')
+  if (error) throw new AuthError(400, callbackErrorMessage(error), true)
+
+  const response = await post('/session', { callback: search })
+  if (!response.ok) {
+    throw new AuthError(
+      response.status,
+      response.status >= 500
+        ? '계정 시스템에 연결하지 못했습니다. 잠시 뒤에 다시 시도해 주세요.'
+        : '로그인을 마무리하지 못했습니다. 다시 시도해 주세요.',
+      response.status < 500,
+    )
   }
-  return toSession(data, '로그인')
+  const session: unknown = await response.json()
+  if (!isSession(session)) throw new AuthError(500, '로그인 응답을 읽지 못했습니다.')
+  return session
 }
 
 /**
- * 토큰 갱신. 갱신 쿠키(자동)와 secToken(직접 넣는 헤더)이 모두 있어야 합니다.
+ * 지금 세션의 접근 토큰. 만료가 가까우면 백엔드가 갱신해서 돌려줍니다.
  *
- * 403 은 세션이 폐기되었다는 뜻이므로 다시 시도하지 않습니다.
+ * 로그인한 적이 없거나 세션이 끝났으면 null 입니다.
  */
-export async function refresh(secToken: string): Promise<AuthSession> {
-  const response = await fetch(`${AUTH_BASE}/token${CLIENT_QUERY}`, {
-    method: 'POST',
-    headers: { 'X-Sec-Token': secToken },
-    credentials: 'include',
-  })
-  if (response.status === 403) {
-    throw new AuthError(403, '로그인이 만료되었습니다. 다시 로그인해 주세요.', true)
+export async function refreshSession(): Promise<AuthSession | null> {
+  const response = await post('/refresh')
+  if (response.status === 401) return null
+  if (!response.ok) {
+    throw new AuthError(response.status, '로그인 상태를 확인하지 못했습니다. 잠시 뒤에 다시 시도해 주세요.')
   }
-  const { message, data } = await readBody(response)
-  if (response.status !== 200) {
-    throw new AuthError(response.status, message || '로그인을 갱신하지 못했습니다.')
-  }
-  return toSession(data, '갱신')
+  const session: unknown = await response.json()
+  if (!isSession(session)) throw new AuthError(500, '로그인 응답을 읽지 못했습니다.')
+  return session
 }
 
 /**
- * 로그아웃. 서버 쪽 갱신 토큰을 폐기합니다.
+ * 로그아웃.
  *
- * 이미 발급된 접근 토큰은 남은 수명(최대 5분) 동안 유효합니다. 상태를 두지 않는 JWT 의 성질이라
- * 로그아웃으로 즉시 끊을 수는 없습니다.
+ * 이 사이트의 세션을 지운 다음, 계정 시스템의 /logout 으로 이동합니다. 우리 쪽만 지우면 SSO 세션이
+ * 남아 다음 로그인 때 곧바로 다시 들어가지므로, 로그아웃이 동작하지 않는 것처럼 보입니다 (§4.5).
+ * 계정 시스템은 로그아웃을 마치면 사이트 첫 화면으로 돌려보냅니다.
  */
-export async function logout(secToken: string): Promise<void> {
-  await fetch(`${AUTH_BASE}/token${CLIENT_QUERY}`, {
-    method: 'DELETE',
-    headers: { 'X-Sec-Token': secToken },
-    credentials: 'include',
-  })
-}
-
-/** 로그인한 계정의 정보와 권한 목록. */
-export async function fetchUserInfo(accessToken: string): Promise<AuthUserInfo> {
-  const response = await fetch(`${AUTH_BASE}/userInfo${CLIENT_QUERY}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
-  const { message, data } = await readBody(response)
-  if (response.status !== 200) {
-    throw new AuthError(response.status, message || '계정 정보를 불러오지 못했습니다.')
-  }
-  const info = (data ?? {}) as Partial<AuthUserInfo>
-  return {
-    lkAccountSub: info.lkAccountSub ?? '',
-    lkAccountEmail: info.lkAccountEmail ?? '',
-    lkAccountName: info.lkAccountName ?? '',
-    lkAccountRole: info.lkAccountRole ?? '',
-    authorities: Array.isArray(info.authorities) ? info.authorities : [],
-  }
+export async function logout(): Promise<void> {
+  const response = await post('/logout')
+  if (!response.ok) throw new AuthError(response.status, '로그아웃하지 못했습니다. 다시 시도해 주세요.')
+  const body = (await response.json()) as { logoutUrl?: unknown }
+  if (typeof body.logoutUrl !== 'string') throw new AuthError(500, '로그아웃 응답을 읽지 못했습니다.')
+  window.location.assign(body.logoutUrl)
 }

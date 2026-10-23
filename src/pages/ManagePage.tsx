@@ -43,6 +43,7 @@ import type { RawSocialMediaConfig } from '../data/socialMedia'
 import type { RawExemplaryCasesConfig } from '../data/exemplaryCases'
 import type { RawGlossaryConfig } from '../data/terms'
 import { useAssetLibrary, type AssetLibrary } from '../hooks/useAssetLibrary'
+import { useAuth } from '../hooks/authContext'
 import styles from './ManagePage.module.css'
 
 /** 입력 칸의 안내 문구에 쓰는 기본값. 달과 무관한 항목만 씁니다. */
@@ -133,6 +134,7 @@ function newWinner(): RawWinner {
 }
 
 function ManagePage() {
+  const { user, signOut } = useAuth()
   const library = useAssetLibrary('image')
   const [draft, setDraft] = useState<RawAwardConfig | null>(null)
   const [home, setHome] = useState<RawHomescreenConfig | null>(null)
@@ -402,6 +404,25 @@ function ManagePage() {
           <button type="button" className={styles.primaryButton} onClick={() => void save()} disabled={saving || !anyDirty}>
             {saving ? '저장 중…' : '저장'}
           </button>
+          {/*
+            로그아웃은 계정 시스템의 SSO 세션까지 끝냅니다 (같은 계정으로 들어간 다른 서비스도 함께
+            로그아웃됩니다). 페이지를 떠나므로 저장하지 않은 변경이 있으면 먼저 묻습니다.
+          */}
+          <span className={styles.account}>
+            <span className={styles.accountName} title={user?.email}>
+              {user?.name || user?.email}
+            </span>
+            <button
+              type="button"
+              className={styles.linkButton}
+              onClick={() => {
+                if (anyDirty && !window.confirm('저장하지 않은 변경이 있습니다. 저장하지 않고 로그아웃할까요?')) return
+                void signOut()
+              }}
+            >
+              로그아웃
+            </button>
+          </span>
         </div>
       </header>
 

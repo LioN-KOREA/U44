@@ -39,6 +39,89 @@ class ConditionalCheckFailedException extends Error {
     }
 }
 
+/**
+ * Evaluate a ConditionExpression against the stored item (undefined when there is none).
+ *
+ * Covers what this codebase writes: attribute_exists / attribute_not_exists, the comparisons
+ * `<`, `>`, `=`, and AND / OR with parentheses. Anything else throws, so a condition this fake
+ * cannot read fails the test rather than passing it by accident.
+ */
+function conditionHolds(
+    expression: string,
+    stored: Item | undefined,
+    names: Record<string, string>,
+    values: Record<string, AttributeValue>,
+): boolean {
+    const tokens = expression.match(/\(|\)|<|>|=|[A-Za-z_#:][A-Za-z0-9_#:]*/g) ?? [];
+    let at = 0;
+    const peek = () => tokens[at];
+    const next = () => {
+        const token = tokens[at++];
+        if (token == null) throw new Error(`fake DynamoDB: the condition ended early (${expression})`);
+        return token;
+    };
+    const attribute = (token: string) => {
+        const name = token.startsWith("#") ? names[token] : token;
+        if (name == null) throw new Error(`ValidationException: ExpressionAttributeNames has no entry for ${token}`);
+        return name;
+    };
+    const operand = (token: string): string | number | undefined => {
+        const value = token.startsWith(":") ? values[token] : stored?.[attribute(token)];
+        if (token.startsWith(":") && value == null) {
+            throw new Error(`ValidationException: ExpressionAttributeValues has no entry for ${token}`);
+        }
+        if (value?.N != null) return Number(value.N);
+        return value?.S;
+    };
+
+    const primary = (): boolean => {
+        const token = next();
+        if (token === "(") {
+            const inner = or();
+            if (next() !== ")") throw new Error(`fake DynamoDB: unbalanced parentheses (${expression})`);
+            return inner;
+        }
+        if (token === "attribute_exists" || token === "attribute_not_exists") {
+            if (next() !== "(") throw new Error(`fake DynamoDB: cannot read ${token} (${expression})`);
+            const name = attribute(next());
+            const exists = stored != null && stored[name] != null;
+            if (next() !== ")") throw new Error(`fake DynamoDB: cannot read ${token} (${expression})`);
+            return token === "attribute_exists" ? exists : !exists;
+        }
+        const operator = next();
+        const left = operand(token);
+        const right = operand(next());
+        // DynamoDB: a comparison against a missing attribute is false.
+        if (left == null || right == null) return false;
+        if (operator === "<") return left < right;
+        if (operator === ">") return left > right;
+        if (operator === "=") return left === right;
+        throw new Error(`fake DynamoDB: unsupported operator ${operator} (${expression})`);
+    };
+    const and = (): boolean => {
+        let result = primary();
+        while (peek()?.toUpperCase() === "AND") {
+            next();
+            const right = primary();
+            result = result && right;
+        }
+        return result;
+    };
+    const or = (): boolean => {
+        let result = and();
+        while (peek()?.toUpperCase() === "OR") {
+            next();
+            const right = and();
+            result = result || right;
+        }
+        return result;
+    };
+
+    const result = or();
+    if (at !== tokens.length) throw new Error(`fake DynamoDB: could not read the whole condition (${expression})`);
+    return result;
+}
+
 export async function dynamoDBPut(ops: PutOps): Promise<DynamoDBResponse<string>> {
     const item = ops.input.Item;
     if (!item) throw new Error("fake DynamoDB: PutItem needs an Item");
@@ -77,7 +160,8 @@ export async function dynamoDBUpdate(ops: UpdateOps): Promise<DynamoDBResponse<s
     if (!key) throw new Error("fake DynamoDB: UpdateItem needs a Key");
     const stored = items.get(itemKey(key));
 
-    if (ops.input.ConditionExpression?.includes("attribute_exists") && !stored) {
+    const condition = ops.input.ConditionExpression;
+    if (condition && !conditionHolds(condition, stored, ops.input.ExpressionAttributeNames ?? {}, ops.input.ExpressionAttributeValues ?? {})) {
         throw new ConditionalCheckFailedException();
     }
 

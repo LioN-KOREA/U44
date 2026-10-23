@@ -9,13 +9,12 @@ import {
     AUTH_BASE,
     CLIENT_ID,
     MANAGE_AUTHORITY,
-    USER_POOL_ID,
     aPlainUser,
     anAdmin,
     authHeaders,
     authoritiesBySub,
     failingLookups,
-    fakeJwtVerifyModule,
+    fakeTokenVerifierModule,
     installFakeUserInfo,
     resetFakeAuth,
     userInfoCalls,
@@ -28,12 +27,11 @@ process.env.U44_S3_BUCKET_NAME = "u44-test-bucket";
 process.env.U44_ALLOWED_ORIGIN_URLS = ORIGIN;
 process.env.U44_ASSETS_BASE_URL = "https://assets.example.test";
 process.env.U44_DYNAMO_DB_TABLE_NAME = "u44-test-table";
-process.env.U44_AUTH_BASE_URL = AUTH_BASE;
+process.env.U44_OIDC_ISSUER = AUTH_BASE;
 process.env.U44_AUTH_CLIENT_ID = CLIENT_ID;
-process.env.U44_AUTH_USER_POOL_ID = USER_POOL_ID;
 process.env.U44_MANAGE_AUTHORITY_ID = MANAGE_AUTHORITY;
 
-vi.mock("aws-jwt-verify", () => fakeJwtVerifyModule());
+vi.mock("../src/u44be/auth/U44TokenVerifier.js", () => fakeTokenVerifierModule());
 
 vi.mock("../src/utils/aws/S3Utils.js", () => ({
     getS3TextObject: vi.fn(async () => ""),

@@ -1,4 +1,3 @@
-import { useState, type FormEvent } from 'react'
 import Icon from '../components/Icon'
 import { useAuth } from '../hooks/authContext'
 import styles from './LoginPage.module.css'
@@ -8,22 +7,17 @@ import styles from './LoginPage.module.css'
  *
  * 메뉴 어디에도 걸어 두지 않았고, /manage 로 들어왔을 때만 나옵니다. 숨겨 두는 것 자체가
  * 보안은 아니므로(주소는 알려질 수 있습니다) 실제 차단은 토큰 검사와 권한 확인이 합니다.
+ *
+ * 이메일·비밀번호는 이 사이트가 받지 않습니다. 로그인 화면은 계정관리 시스템 쪽에 있고, 이
+ * 사이트는 그리로 보냈다가 돌아온 결과만 받습니다. 다른 서비스에 이미 로그인해 있으면 그 화면조차
+ * 거치지 않고 곧바로 돌아옵니다 (SSO).
+ *
+ * 평소에는 ManageRoute 가 곧바로 로그인으로 보내므로 이 화면이 잠깐 보였다가 넘어갑니다. 로그인이
+ * 실패했거나 세션이 끝났을 때만 이유와 함께 머물러, 사용자가 다시 시도할지 고르게 합니다.
  */
 function LoginPage() {
-  const { signIn, busy, error } = useAuth()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-
-  const onSubmit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (busy) return
-    try {
-      await signIn(email.trim(), password)
-    } catch {
-      // 실패 이유는 useAuth 가 error 로 들고 있습니다. 비밀번호만 비워 다시 입력받습니다.
-      setPassword('')
-    }
-  }
+  const { status, error, signIn } = useAuth()
+  const working = status === 'checking' || (status !== 'signedOut' && !error)
 
   return (
     <main className={styles.main}>
@@ -34,44 +28,17 @@ function LoginPage() {
           <p className={styles.subtitle}>시상식 정보를 고치려면 먼저 로그인해 주세요.</p>
         </div>
 
-        <form className={styles.form} onSubmit={(e) => void onSubmit(e)}>
-          <label className={styles.field}>
-            <span className={styles.label}>이메일</span>
-            <input
-              type="email"
-              className={styles.input}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="username"
-              required
-              disabled={busy}
-            />
-          </label>
-
-          <label className={styles.field}>
-            <span className={styles.label}>비밀번호</span>
-            <input
-              type="password"
-              className={styles.input}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-              disabled={busy}
-            />
-          </label>
-
-          {/* 로그인 실패 문구. 어느 쪽이 틀렸는지는 알려 주지 않습니다. */}
+        <div className={styles.form}>
           {error && (
             <p className={styles.error} role="alert">
               {error}
             </p>
           )}
 
-          <button type="submit" className={styles.submit} disabled={busy || !email || !password}>
-            {busy ? '확인 중…' : '로그인'}
+          <button type="button" className={styles.submit} onClick={signIn} disabled={working}>
+            {working ? '로그인 화면으로 이동하는 중…' : '라이온코리아 계정으로 로그인'}
           </button>
-        </form>
+        </div>
 
         <p className={styles.note}>
           계정은 라이온코리아 IT 서비스 계정관리 시스템에서 관리합니다. 접근 권한이 필요하면
